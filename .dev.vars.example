@@ -1,0 +1,11 @@
+# Copy to `.dev.vars` for local development (loaded automatically by wrangler/vite).
+# All are optional locally — the app degrades gracefully without them.
+
+# TMDB API key — enables posters, artwork and search.
+# Free key: https://www.themoviedb.org/settings/api  (v3 "API Key")
+TMDB_API_KEY=
+
+# Email delivery for magic links (optional locally: the link is logged to the
+# console and shown in the UI when these are unset).
+RESEND_API_KEY=
+MAIL_FROM=login@yourdomain.com

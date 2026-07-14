@@ -1,0 +1,29 @@
+{
+  // Cloudflare Workers configuration.
+  // Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rip-tv-time",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2024-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    // Vite builds the React client here; the Worker serves it and handles /api/*.
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "rip_tv_time",
+      // Replace with your real database_id after `wrangler d1 create rip_tv_time`.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "vars": {
+    // App base URL used inside magic-link emails. Override per-environment.
+    "APP_URL": "http://localhost:5173"
+    // Secrets (set with `wrangler secret put`): TMDB_API_KEY, RESEND_API_KEY, MAIL_FROM
+  }
+}

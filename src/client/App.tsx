@@ -1,0 +1,49 @@
+import { useEffect, useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import type { UserProfile } from "../../shared/types";
+import { api, AuthError } from "./lib/api";
+import { BottomNav } from "./components/BottomNav";
+import { Login } from "./pages/Login";
+import { ImportPage } from "./pages/ImportPage";
+import { Home } from "./pages/Home";
+import { Upcoming } from "./pages/Upcoming";
+import { Discover } from "./pages/Discover";
+import { Profile } from "./pages/Profile";
+import { Detail } from "./pages/Detail";
+
+export default function App() {
+  const [user, setUser] = useState<UserProfile | null | undefined>(undefined); // undefined = loading
+
+  useEffect(() => {
+    api.me().then((u) => setUser(u)).catch(() => setUser(null));
+  }, []);
+
+  if (user === undefined) {
+    return <div className="center-screen"><div className="spinner" /></div>;
+  }
+
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="*" element={<Login onDone={() => api.me().then(setUser).catch(() => {})} />} />
+      </Routes>
+    );
+  }
+
+  const refresh = () => api.me().then(setUser).catch((e) => { if (e instanceof AuthError) setUser(null); });
+
+  return (
+    <div className="app">
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/upcoming" element={<Upcoming />} />
+        <Route path="/discover" element={<Discover />} />
+        <Route path="/profile" element={<Profile user={user} onChange={refresh} />} />
+        <Route path="/import" element={<ImportPage onDone={refresh} />} />
+        <Route path="/title/:id" element={<Detail />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <BottomNav />
+    </div>
+  );
+}

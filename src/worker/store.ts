@@ -1,0 +1,170 @@
+import type { Env } from "./types";
+import type { ParsedImport, LibraryItem, Stats, Status, TitleMeta } from "../../shared/types";
+import { resolveMeta, fetchDetail } from "./tmdb";
+
+// Stable title id derived from external ids, so the row keeps the same id before
+// and after TMDB resolution (library rows never need rewriting).
+function titleId(t: { kind: string; tvdb_id: number | null; imdb_id: string | null; name: string }): string {
+  if (t.tvdb_id) return `tvdb:${t.kind}:${t.tvdb_id}`;
+  if (t.imdb_id) return `imdb:${t.kind}:${t.imdb_id}`;
+  return `name:${t.kind}:${t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60)}`;
+}
+
+const chunk = <T>(arr: T[], n: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+};
+
+/** Wipe a user's library and reseed it from a parsed export. */
+export async function seedImport(env: Env, userId: string, data: ParsedImport): Promise<{ titles: number; episodes: number }> {
+  if (data.profile.name || data.profile.bio || data.profile.cover_url) {
+    await env.DB.prepare("UPDATE users SET name = COALESCE(?, name), bio = COALESCE(?, bio), cover_url = COALESCE(?, cover_url) WHERE id = ?")
+      .bind(data.profile.name ?? null, data.profile.bio ?? null, data.profile.cover_url ?? null, userId)
+      .run();
+  }
+
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM watched_episodes WHERE user_id = ?").bind(userId),
+    env.DB.prepare("DELETE FROM library WHERE user_id = ?").bind(userId),
+  ]);
+
+  let episodes = 0;
+  for (const group of chunk(data.titles, 50)) {
+    const stmts: D1PreparedStatement[] = [];
+    for (const t of group) {
+      const id = titleId(t);
+      stmts.push(
+        env.DB.prepare(
+          "INSERT INTO titles (id, kind, tvdb_id, imdb_id, name) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+        ).bind(id, t.kind, t.tvdb_id, t.imdb_id, t.name),
+      );
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO library (user_id, title_id, kind, status, is_favorite, rating, added_at, last_watched_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, title_id) DO UPDATE SET status=excluded.status, is_favorite=excluded.is_favorite`,
+        ).bind(userId, id, t.kind, t.status, t.is_favorite ? 1 : 0, t.rating, t.added_at, t.last_watched_at),
+      );
+      for (const e of t.watched_episodes) {
+        episodes++;
+        stmts.push(
+          env.DB.prepare(
+            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched_at, rating) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+          ).bind(userId, id, e.season, e.episode, e.watched_at, e.rating),
+        );
+      }
+    }
+    await env.DB.batch(stmts);
+  }
+  return { titles: data.titles.length, episodes };
+}
+
+/** Resolve TMDB metadata for up to `limit` still-unresolved titles. Returns remaining count. */
+export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: number; remaining: number }> {
+  const { results } = await env.DB.prepare(
+    "SELECT id, kind, tvdb_id, imdb_id, name FROM titles WHERE tmdb_id IS NULL AND poster_path IS NULL LIMIT ?",
+  ).bind(limit).all<{ id: string; kind: "show" | "movie"; tvdb_id: number | null; imdb_id: string | null; name: string }>();
+
+  let resolved = 0;
+  for (const row of results) {
+    const meta = await resolveMeta(env, row.kind, row);
+    if (meta) {
+      await env.DB.prepare(
+        `UPDATE titles SET tmdb_id=?, name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=?, total_episodes=?, genres=?, updated_at=datetime('now') WHERE id=?`,
+      ).bind(meta.tmdb_id, meta.name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
+      resolved++;
+    } else {
+      // Mark as attempted so we don't retry forever: set tmdb_id = -1 sentinel.
+      await env.DB.prepare("UPDATE titles SET tmdb_id = -1 WHERE id = ?").bind(row.id).run();
+    }
+  }
+  const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE tmdb_id IS NULL AND poster_path IS NULL").first<{ c: number }>();
+  return { resolved, remaining: rem?.c ?? 0 };
+}
+
+function rowToMeta(r: any): TitleMeta {
+  return {
+    id: r.id, kind: r.kind, tmdb_id: r.tmdb_id === -1 ? null : r.tmdb_id, imdb_id: r.imdb_id, tvdb_id: r.tvdb_id,
+    name: r.name, overview: r.overview, poster_path: r.poster_path, backdrop_path: r.backdrop_path,
+    release_date: r.release_date, runtime: r.runtime, total_episodes: r.total_episodes,
+    genres: r.genres ? JSON.parse(r.genres) : [],
+  };
+}
+
+export async function getLibrary(env: Env, userId: string, kind?: string): Promise<LibraryItem[]> {
+  const where = kind ? "AND l.kind = ?" : "";
+  const stmt = env.DB.prepare(
+    `SELECT t.*, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at,
+            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id) AS episodes_watched
+     FROM library l JOIN titles t ON t.id = l.title_id
+     WHERE l.user_id = ? ${where}
+     ORDER BY l.last_watched_at DESC NULLS LAST, l.added_at DESC`,
+  );
+  const { results } = await (kind ? stmt.bind(userId, kind) : stmt.bind(userId)).all<any>();
+  return results.map((r) => ({ ...rowToMeta(r), status: r.status as Status, is_favorite: !!r.is_favorite, rating: r.rating, added_at: r.added_at, last_watched_at: r.last_watched_at, episodes_watched: r.episodes_watched }));
+}
+
+export async function getTitle(env: Env, userId: string, titleId: string): Promise<(LibraryItem & { episodes: any[] }) | null> {
+  const r = await env.DB.prepare(
+    `SELECT t.*, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at
+     FROM titles t LEFT JOIN library l ON l.title_id = t.id AND l.user_id = ?
+     WHERE t.id = ?`,
+  ).bind(userId, titleId).first<any>();
+  if (!r) return null;
+  const { results: episodes } = await env.DB.prepare(
+    "SELECT season, episode, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
+  ).bind(userId, titleId).all();
+  return { ...rowToMeta(r), status: (r.status ?? "not_started") as Status, is_favorite: !!r.is_favorite, rating: r.rating, added_at: r.added_at, last_watched_at: r.last_watched_at, episodes_watched: episodes.length, episodes };
+}
+
+export async function getStats(env: Env, userId: string): Promise<Stats> {
+  const q = async (sql: string) => (await env.DB.prepare(sql).bind(userId).first<any>()) ?? {};
+  const shows = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'show'");
+  const movies = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'movie'");
+  const eps = await q("SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ?");
+  const moviesWatched = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind='movie' AND status='watched'");
+  // Watch time: episodes * avg episode runtime (default 40m), movies * runtime (default 100m).
+  const tv = await q("SELECT COALESCE(SUM(COALESCE(t.runtime,40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ?");
+  const mv = await q("SELECT COALESCE(SUM(COALESCE(t.runtime,100)),0) m FROM library l JOIN titles t ON t.id=l.title_id WHERE l.user_id = ? AND l.kind='movie' AND l.status='watched'");
+  return { shows: shows.c, movies: movies.c, episodes_watched: eps.c, movies_watched: moviesWatched.c, tv_minutes: tv.m, movie_minutes: mv.m };
+}
+
+/** Add a title from a TMDB search result to the user's library. */
+export async function addTitle(env: Env, userId: string, kind: "show" | "movie", tmdbId: number, status: Status): Promise<string> {
+  const meta = await fetchDetail(env, kind, tmdbId);
+  const id = `tmdb:${kind}:${tmdbId}`;
+  if (meta) {
+    await env.DB.prepare(
+      `INSERT INTO titles (id, kind, tmdb_id, name, overview, poster_path, backdrop_path, release_date, runtime, total_episodes, genres, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(id) DO UPDATE SET poster_path=excluded.poster_path, updated_at=datetime('now')`,
+    ).bind(id, kind, meta.tmdb_id, meta.name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres)).run();
+  }
+  await env.DB.prepare(
+    "INSERT INTO library (user_id, title_id, kind, status, added_at) VALUES (?, ?, ?, ?, datetime('now')) ON CONFLICT(user_id, title_id) DO UPDATE SET status=excluded.status",
+  ).bind(userId, id, kind, status).run();
+  return id;
+}
+
+export async function updateLibrary(env: Env, userId: string, titleId: string, patch: { status?: Status; is_favorite?: boolean; rating?: number | null }) {
+  const sets: string[] = [];
+  const binds: any[] = [];
+  if (patch.status !== undefined) { sets.push("status = ?"); binds.push(patch.status); }
+  if (patch.is_favorite !== undefined) { sets.push("is_favorite = ?"); binds.push(patch.is_favorite ? 1 : 0); }
+  if (patch.rating !== undefined) { sets.push("rating = ?"); binds.push(patch.rating); }
+  if (!sets.length) return;
+  binds.push(userId, titleId);
+  await env.DB.prepare(`UPDATE library SET ${sets.join(", ")} WHERE user_id = ? AND title_id = ?`).bind(...binds).run();
+}
+
+export async function toggleEpisode(env: Env, userId: string, titleId: string, season: number, episode: number, watched: boolean) {
+  if (watched) {
+    await env.DB.prepare(
+      "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched_at) VALUES (?, ?, ?, ?, datetime('now')) ON CONFLICT DO NOTHING",
+    ).bind(userId, titleId, season, episode).run();
+    await env.DB.prepare("UPDATE library SET last_watched_at = datetime('now') WHERE user_id = ? AND title_id = ?").bind(userId, titleId).run();
+  } else {
+    await env.DB.prepare("DELETE FROM watched_episodes WHERE user_id = ? AND title_id = ? AND season = ? AND episode = ?").bind(userId, titleId, season, episode).run();
+  }
+}
