@@ -47,11 +47,48 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
         <Stat text={stats ? hours(stats.movie_minutes) : undefined} label="Time in movies" />
       </div>
 
+      <TmdbKeySettings />
+
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
         <Link className="btn ghost" to="/import" style={{ textAlign: "center" }}>Re-import data</Link>
         <button className="btn ghost" onClick={logout}>Log out</button>
       </div>
     </>
+  );
+}
+
+function TmdbKeySettings() {
+  const [has, setHas] = useState<boolean | null>(null);
+  const [key, setKey] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { api.getSettings().then((s) => setHas(s.has_tmdb_key)).catch(() => setHas(false)); }, []);
+
+  async function save() {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await api.setTmdbKey(key);
+      setHas(r.valid);
+      setMsg(r.valid ? "Key saved and working ✓ Re-import to fetch posters." : "Saved, but TMDB rejected this key. Check you copied the v3 API key (or v4 token).");
+      setKey("");
+    } catch { setMsg("Could not save key."); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div style={{ padding: 16 }}>
+      <h2 style={{ fontSize: 16 }}>TMDB API key {has === true && <span style={{ color: "var(--primary)" }}>· connected</span>}</h2>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        Needed for posters, artwork, episode lists and search. Get a free key at{" "}
+        <a style={{ color: "var(--primary)" }} href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a>.
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input className="input" placeholder={has ? "Replace key…" : "Paste TMDB key…"} value={key} onChange={(e) => setKey(e.target.value)} />
+        <button className="btn" disabled={busy || !key.trim()} onClick={save}>{busy ? "…" : "Save"}</button>
+      </div>
+      {msg && <p style={{ fontSize: 13, marginTop: 8 }}>{msg}</p>}
+    </div>
   );
 }
 

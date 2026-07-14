@@ -3,8 +3,8 @@ import type { Env, Vars } from "./types";
 import { createMagicToken, verifyMagicToken, setSessionCookie, clearSession, requireAuth } from "./auth";
 import { sendMagicLink } from "./email";
 import { parseZips } from "./import";
-import { search } from "./tmdb";
-import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode } from "./store";
+import { search, fetchSeasons } from "./tmdb";
+import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey } from "./store";
 import type { Status } from "../../shared/types";
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -81,10 +81,32 @@ app.get("/api/title/:id", requireAuth, async (c) => {
   return t ? c.json(t) : c.json({ error: "not found" }, 404);
 });
 
+app.get("/api/title/:id/seasons", requireAuth, async (c) => {
+  const t = await getTitle(c.env, c.get("userId"), c.req.param("id")!);
+  if (!t || t.kind !== "show" || !t.tmdb_id) return c.json({ seasons: [] });
+  return c.json({ seasons: await fetchSeasons(await tmdbKey(c.env), t.tmdb_id) });
+});
+
 app.get("/api/search", requireAuth, async (c) => {
   const q = c.req.query("q");
   if (!q) return c.json([]);
-  return c.json(await search(c.env, q));
+  return c.json(await search(await tmdbKey(c.env), q));
+});
+
+// TMDB key management (entered in the UI so no file editing is needed).
+app.get("/api/settings", requireAuth, async (c) => {
+  const key = await getSetting(c.env, "tmdb_key");
+  const envKey = !!c.env.TMDB_API_KEY;
+  return c.json({ has_tmdb_key: !!(key || envKey), tmdb_key_hint: key ? key.slice(0, 4) + "…" : envKey ? "(from server secret)" : null });
+});
+
+app.post("/api/settings", requireAuth, async (c) => {
+  const { tmdb_key } = await c.req.json<{ tmdb_key?: string }>();
+  if (typeof tmdb_key !== "string") return c.json({ error: "tmdb_key required" }, 400);
+  await setSetting(c.env, "tmdb_key", tmdb_key.trim());
+  // Validate against TMDB so the user gets immediate feedback.
+  const test = await search(tmdb_key.trim(), "breaking bad");
+  return c.json({ ok: true, valid: test.length > 0 });
 });
 
 app.post("/api/library", requireAuth, async (c) => {

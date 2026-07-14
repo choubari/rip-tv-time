@@ -1,5 +1,5 @@
 import type { LibraryItem, Stats, UserProfile } from "../../../shared/types";
-import type { SearchResult } from "../../worker/tmdb";
+import type { SearchResult, SeasonData } from "../../worker/tmdb";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: "same-origin", ...init });
@@ -32,10 +32,14 @@ export const api = {
   },
   resolve: (limit = 40) => req<{ resolved: number; remaining: number }>(`/api/resolve?limit=${limit}`, { method: "POST" }),
 
+  getSettings: () => req<{ has_tmdb_key: boolean; tmdb_key_hint: string | null }>("/api/settings"),
+  setTmdbKey: (tmdb_key: string) => req<{ ok: boolean; valid: boolean }>("/api/settings", json({ tmdb_key })),
+
   library: (kind?: string) => req<LibraryItem[]>(`/api/library${kind ? `?kind=${kind}` : ""}`),
   upcoming: () => req<LibraryItem[]>("/api/upcoming"),
   stats: () => req<Stats>("/api/stats"),
   title: (id: string) => req<TitleDetail>(`/api/title/${encodeURIComponent(id)}`),
+  seasons: (id: string) => req<{ seasons: SeasonData[] }>(`/api/title/${encodeURIComponent(id)}/seasons`),
   search: (q: string) => req<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
 
   add: (kind: "show" | "movie", tmdb_id: number, status?: string) => req<{ id: string }>("/api/library", json({ kind, tmdb_id, status })),

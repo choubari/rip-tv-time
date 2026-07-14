@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 
 type Phase = "idle" | "uploading" | "resolving" | "done";
@@ -9,8 +9,11 @@ export function ImportPage({ onDone }: { onDone: () => void }) {
   const [msg, setMsg] = useState("");
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const nav = useNavigate();
+
+  useEffect(() => { api.getSettings().then((s) => setHasKey(s.has_tmdb_key)).catch(() => setHasKey(false)); }, []);
 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;
@@ -50,7 +53,18 @@ export function ImportPage({ onDone }: { onDone: () => void }) {
         <p className="muted">
           Drop your <code>tv-time-export.zip</code> and/or <code>gdpr-data.zip</code>. Your
           watch history, statuses and profile will be imported. You can re-import anytime.
+          For the richest data (per-episode dates, "up to date" status), upload <strong>both</strong>.
         </p>
+
+        {hasKey === false && (
+          <div style={{ background: "var(--bg-elev)", border: "1px solid var(--primary)", borderRadius: 12, padding: 14 }}>
+            <strong>No TMDB key set.</strong>
+            <p className="muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
+              Import will still work, but you'll get no posters or artwork. Add a free key in{" "}
+              <Link to="/profile" style={{ color: "var(--primary)" }}>Profile → TMDB API key</Link>, then import.
+            </p>
+          </div>
+        )}
 
         {phase === "idle" || phase === "uploading" ? (
           <div

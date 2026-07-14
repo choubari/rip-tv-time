@@ -3,11 +3,19 @@ import type { ParsedImport, LibraryItem, Stats, Status, TitleMeta } from "../../
 import { resolveMeta, fetchDetail } from "./tmdb";
 
 // Stable title id derived from external ids, so the row keeps the same id before
-// and after TMDB resolution (library rows never need rewriting).
+// and after TMDB resolution (library rows never need rewriting). The name-based
+// fallback hashes the full name (not a slug) so non-Latin titles (JP/KR/AR) stay
+// unique instead of collapsing to the same stripped string.
+function nameHash(name: string): string {
+  let h = 5381;
+  const s = name.toLowerCase().trim();
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
 function titleId(t: { kind: string; tvdb_id: number | null; imdb_id: string | null; name: string }): string {
   if (t.tvdb_id) return `tvdb:${t.kind}:${t.tvdb_id}`;
   if (t.imdb_id) return `imdb:${t.kind}:${t.imdb_id}`;
-  return `name:${t.kind}:${t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60)}`;
+  return `name:${t.kind}:${nameHash(t.name)}`;
 }
 
 const chunk = <T>(arr: T[], n: number): T[][] => {
@@ -36,8 +44,11 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
       const id = titleId(t);
       stmts.push(
         env.DB.prepare(
-          "INSERT INTO titles (id, kind, tvdb_id, imdb_id, name) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
-        ).bind(id, t.kind, t.tvdb_id, t.imdb_id, t.name),
+          `INSERT INTO titles (id, kind, tvdb_id, imdb_id, name, runtime) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             runtime = COALESCE(titles.runtime, excluded.runtime),
+             resolve_failed = CASE WHEN titles.poster_path IS NULL THEN 0 ELSE titles.resolve_failed END`,
+        ).bind(id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime),
       );
       stmts.push(
         env.DB.prepare(
@@ -50,8 +61,8 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
         episodes++;
         stmts.push(
           env.DB.prepare(
-            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched_at, rating) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
-          ).bind(userId, id, e.season, e.episode, e.watched_at, e.rating),
+            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched_at, rating, runtime) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+          ).bind(userId, id, e.season, e.episode, e.watched_at, e.rating, e.runtime),
         );
       }
     }
@@ -60,26 +71,41 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
   return { titles: data.titles.length, episodes };
 }
 
+export async function getSetting(env: Env, key: string): Promise<string | null> {
+  const r = await env.DB.prepare("SELECT value FROM app_settings WHERE key = ?").bind(key).first<{ value: string }>();
+  return r?.value ?? null;
+}
+
+export async function setSetting(env: Env, key: string, value: string): Promise<void> {
+  await env.DB.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(key, value).run();
+}
+
+/** The TMDB key from the UI setting, falling back to the TMDB_API_KEY secret. */
+export async function tmdbKey(env: Env): Promise<string | undefined> {
+  return (await getSetting(env, "tmdb_key")) || env.TMDB_API_KEY || undefined;
+}
+
 /** Resolve TMDB metadata for up to `limit` still-unresolved titles. Returns remaining count. */
 export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: number; remaining: number }> {
+  const key = await tmdbKey(env);
   const { results } = await env.DB.prepare(
-    "SELECT id, kind, tvdb_id, imdb_id, name FROM titles WHERE tmdb_id IS NULL AND poster_path IS NULL LIMIT ?",
-  ).bind(limit).all<{ id: string; kind: "show" | "movie"; tvdb_id: number | null; imdb_id: string | null; name: string }>();
+    "SELECT id, kind, tvdb_id, imdb_id, name, runtime FROM titles WHERE poster_path IS NULL AND resolve_failed = 0 LIMIT ?",
+  ).bind(limit).all<{ id: string; kind: "show" | "movie"; tvdb_id: number | null; imdb_id: string | null; name: string; runtime: number | null }>();
 
   let resolved = 0;
   for (const row of results) {
-    const meta = await resolveMeta(env, row.kind, row);
+    const meta = await resolveMeta(key, row.kind, row);
     if (meta) {
       await env.DB.prepare(
-        `UPDATE titles SET tmdb_id=?, name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=?, total_episodes=?, genres=?, updated_at=datetime('now') WHERE id=?`,
+        // Keep the real runtime we already have (from GDPR) unless TMDB gives one.
+        `UPDATE titles SET tmdb_id=?, name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(?, runtime), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
       ).bind(meta.tmdb_id, meta.name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
       resolved++;
     } else {
-      // Mark as attempted so we don't retry forever: set tmdb_id = -1 sentinel.
-      await env.DB.prepare("UPDATE titles SET tmdb_id = -1 WHERE id = ?").bind(row.id).run();
+      await env.DB.prepare("UPDATE titles SET resolve_failed = 1 WHERE id = ?").bind(row.id).run();
     }
   }
-  const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE tmdb_id IS NULL AND poster_path IS NULL").first<{ c: number }>();
+  const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE poster_path IS NULL AND resolve_failed = 0").first<{ c: number }>();
   return { resolved, remaining: rem?.c ?? 0 };
 }
 
@@ -124,15 +150,16 @@ export async function getStats(env: Env, userId: string): Promise<Stats> {
   const movies = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'movie'");
   const eps = await q("SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ?");
   const moviesWatched = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind='movie' AND status='watched'");
-  // Watch time: episodes * avg episode runtime (default 40m), movies * runtime (default 100m).
-  const tv = await q("SELECT COALESCE(SUM(COALESCE(t.runtime,40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ?");
+  // Watch time: prefer the real per-episode runtime from the export, then the
+  // show's average runtime, then a 40m default. Movies use their own runtime.
+  const tv = await q("SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ?");
   const mv = await q("SELECT COALESCE(SUM(COALESCE(t.runtime,100)),0) m FROM library l JOIN titles t ON t.id=l.title_id WHERE l.user_id = ? AND l.kind='movie' AND l.status='watched'");
   return { shows: shows.c, movies: movies.c, episodes_watched: eps.c, movies_watched: moviesWatched.c, tv_minutes: tv.m, movie_minutes: mv.m };
 }
 
 /** Add a title from a TMDB search result to the user's library. */
 export async function addTitle(env: Env, userId: string, kind: "show" | "movie", tmdbId: number, status: Status): Promise<string> {
-  const meta = await fetchDetail(env, kind, tmdbId);
+  const meta = await fetchDetail(await tmdbKey(env), kind, tmdbId);
   const id = `tmdb:${kind}:${tmdbId}`;
   if (meta) {
     await env.DB.prepare(

@@ -82,9 +82,10 @@ export interface ParsedTitle {
   status: Status;
   is_favorite: boolean;
   rating: number | null;
+  runtime: number | null; // movie runtime in minutes (shows: null)
   added_at: string | null;
   last_watched_at: string | null;
-  watched_episodes: { season: number; episode: number; watched_at: string | null; rating: number | null }[];
+  watched_episodes: { season: number; episode: number; watched_at: string | null; rating: number | null; runtime: number | null }[];
 }
 
 export interface ParsedImport {

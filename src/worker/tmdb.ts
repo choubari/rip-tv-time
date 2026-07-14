@@ -1,5 +1,3 @@
-import type { Env } from "./types";
-
 // Thin TMDB v3 client. Requires a TMDB_API_KEY secret (free at
 // https://www.themoviedb.org/settings/api). All calls are best-effort: on any
 // error we return null so import/search degrades gracefully (no poster) rather
@@ -19,13 +17,16 @@ export interface TmdbMeta {
   genres: string[];
 }
 
-async function tmdb<T>(env: Env, path: string, params: Record<string, string> = {}): Promise<T | null> {
-  if (!env.TMDB_API_KEY) return null;
+async function tmdb<T>(key: string | undefined, path: string, params: Record<string, string> = {}): Promise<T | null> {
+  key = key?.trim();
+  if (!key) return null;
   const url = new URL(BASE + path);
-  url.searchParams.set("api_key", env.TMDB_API_KEY);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  // Support both a v3 API key (query param) and a v4 Read Access Token (JWT → Bearer).
+  const isJwt = key.startsWith("eyJ");
+  if (!isJwt) url.searchParams.set("api_key", key);
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), isJwt ? { headers: { Authorization: `Bearer ${key}` } } : undefined);
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -63,7 +64,7 @@ function shapeMovie(d: any): TmdbMeta {
 
 /** Resolve a title's TMDB metadata from a tvdb id, imdb id, or (fallback) title search. */
 export async function resolveMeta(
-  env: Env,
+  key: string | undefined,
   kind: "show" | "movie",
   ids: { tvdb_id: number | null; imdb_id: string | null; name: string },
 ): Promise<TmdbMeta | null> {
@@ -74,20 +75,20 @@ export async function resolveMeta(
     ids.imdb_id ? { external_source: "imdb_id", id: ids.imdb_id } : null,
   ]) {
     if (!ext) continue;
-    const found = await tmdb<any>(env, `/find/${ext.id}`, { external_source: ext.external_source });
+    const found = await tmdb<any>(key, `/find/${ext.id}`, { external_source: ext.external_source });
     const hit = found?.[findKind]?.[0];
-    if (hit) return fetchDetail(env, kind, hit.id);
+    if (hit) return fetchDetail(key, kind, hit.id);
   }
 
   // Fallback: search by name.
-  const search = await tmdb<any>(env, `/search/${kind === "show" ? "tv" : "movie"}`, { query: ids.name });
+  const search = await tmdb<any>(key, `/search/${kind === "show" ? "tv" : "movie"}`, { query: ids.name });
   const hit = search?.results?.[0];
-  if (hit) return fetchDetail(env, kind, hit.id);
+  if (hit) return fetchDetail(key, kind, hit.id);
   return null;
 }
 
-async function fetchDetail(env: Env, kind: "show" | "movie", id: number): Promise<TmdbMeta | null> {
-  const d = await tmdb<any>(env, `/${kind === "show" ? "tv" : "movie"}/${id}`);
+async function fetchDetail(key: string | undefined, kind: "show" | "movie", id: number): Promise<TmdbMeta | null> {
+  const d = await tmdb<any>(key, `/${kind === "show" ? "tv" : "movie"}/${id}`);
   if (!d) return null;
   return kind === "show" ? shapeTv(d) : shapeMovie(d);
 }
@@ -102,8 +103,8 @@ export interface SearchResult {
 }
 
 /** Multi-search for the Discover/track page. */
-export async function search(env: Env, query: string): Promise<SearchResult[]> {
-  const d = await tmdb<any>(env, "/search/multi", { query });
+export async function search(key: string | undefined, query: string): Promise<SearchResult[]> {
+  const d = await tmdb<any>(key, "/search/multi", { query });
   if (!d?.results) return [];
   return d.results
     .filter((r: any) => r.media_type === "tv" || r.media_type === "movie")
@@ -119,3 +120,32 @@ export async function search(env: Env, query: string): Promise<SearchResult[]> {
 }
 
 export { fetchDetail };
+
+export interface SeasonData {
+  season: number;
+  name: string;
+  episodes: { episode: number; name: string; air_date: string | null; runtime: number | null }[];
+}
+
+/** Full season/episode structure for a show, from TMDB. Empty if no key or not resolved. */
+export async function fetchSeasons(key: string | undefined, tmdbId: number): Promise<SeasonData[]> {
+  const show = await tmdb<any>(key, `/tv/${tmdbId}`);
+  if (!show?.seasons) return [];
+  const numbers: number[] = show.seasons.map((s: any) => s.season_number).filter((n: number) => n > 0);
+  const out: SeasonData[] = [];
+  for (const n of numbers) {
+    const s = await tmdb<any>(key, `/tv/${tmdbId}/season/${n}`);
+    if (!s?.episodes) continue;
+    out.push({
+      season: n,
+      name: s.name ?? `Season ${n}`,
+      episodes: s.episodes.map((e: any) => ({
+        episode: e.episode_number,
+        name: e.name ?? "",
+        air_date: e.air_date || null,
+        runtime: e.runtime ?? null,
+      })),
+    });
+  }
+  return out;
+}

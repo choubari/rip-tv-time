@@ -31,17 +31,26 @@ One `vite dev` runs the React client **and** the Worker with a local D1 database
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars   # add a TMDB_API_KEY to get posters (optional)
 npm run db:migrate:local         # create tables in the local D1
 npm run dev                      # http://localhost:5173
 ```
 
-Sign in: enter any email. Without `RESEND_API_KEY` set, the magic link is
-printed in the terminal and shown in the UI — click it to log in. Then open
-**Import**, drop your export `.zip`(s), and watch your library fill in.
+1. **Sign in** — enter any email. Without `RESEND_API_KEY`, the magic link is
+   printed in the terminal and shown in the UI — click it to log in.
+2. **Add a TMDB key** — go to **Profile → TMDB API key**, paste a free key from
+   [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
+   (either the v3 "API Key" or the v4 Read Access Token works). It's validated
+   instantly. This powers posters, artwork, episode lists and search.
+3. **Import** — open **Import**, drop your export `.zip`(s). For the richest data
+   upload **both** `tv-time-export.zip` and `gdpr-data.zip`. The GDPR export
+   alone works too (it carries real episode runtimes).
+4. Posters are then fetched from TMDB with a progress bar. Re-import anytime.
 
-> Posters are fetched lazily from TMDB after import, with a progress bar. No
-> TMDB key? Everything still works; titles just show as text placeholders.
+> No TMDB key? Everything still works — titles just show as text placeholders.
+> Added the key after importing? Just hit **Re-import** and posters will fill in.
+
+> **Upgrading an existing local checkout?** The schema changed — run
+> `npm run db:reset:local` to recreate the local tables.
 
 ## Deploy to Cloudflare
 

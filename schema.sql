@@ -2,6 +2,12 @@
 -- Apply locally:  npm run db:migrate:local
 -- Apply to prod:  npm run db:migrate:remote
 
+-- App-wide settings (e.g. the TMDB API key entered in the UI).
+CREATE TABLE IF NOT EXISTS app_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id         TEXT PRIMARY KEY,
   email      TEXT UNIQUE NOT NULL,
@@ -40,6 +46,7 @@ CREATE TABLE IF NOT EXISTS titles (
   runtime        INTEGER,            -- movie runtime, or avg episode runtime (minutes)
   total_episodes INTEGER,           -- show: total aired episodes (for progress)
   genres         TEXT,               -- JSON array of genre names
+  resolve_failed INTEGER NOT NULL DEFAULT 0, -- 1 = TMDB lookup attempted & failed
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -65,6 +72,7 @@ CREATE TABLE IF NOT EXISTS watched_episodes (
   episode    INTEGER NOT NULL,
   watched_at TEXT,
   rating     REAL,
+  runtime    INTEGER,               -- minutes (from GDPR export when available)
   PRIMARY KEY (user_id, title_id, season, episode)
 );
 CREATE INDEX IF NOT EXISTS idx_watched_user_title ON watched_episodes (user_id, title_id);

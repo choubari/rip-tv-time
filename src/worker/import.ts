@@ -4,7 +4,10 @@ import type { ParsedImport } from "../../shared/types";
 
 // Files we care about from either export zip. Everything else is ignored.
 const WANTED = new Set([
+  // tv-time-export.zip
   "shows.json", "movies.json", "favorites.json", "lists.json",
+  // gdpr-data.zip
+  "tracking-prod-records-v2.csv", "tracking-prod-records.csv",
   "user_personal_data.csv", "user_show_special_status.csv", "user.csv",
 ]);
 
