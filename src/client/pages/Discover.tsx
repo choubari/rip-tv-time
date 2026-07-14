@@ -25,7 +25,7 @@ export function Discover() {
 
   return (
     <>
-      <div className="topbar"><h1>Discover</h1></div>
+      <div className="topbar"><h1>Explore</h1></div>
       <form onSubmit={run} style={{ padding: 16, display: "flex", gap: 8 }}>
         <input className="input" placeholder="Search shows & movies…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
         <button className="btn" disabled={busy}>{busy ? "…" : "Go"}</button>

@@ -5,8 +5,7 @@ import { api, AuthError } from "./lib/api";
 import { BottomNav } from "./components/BottomNav";
 import { Login } from "./pages/Login";
 import { ImportPage } from "./pages/ImportPage";
-import { Home } from "./pages/Home";
-import { Upcoming } from "./pages/Upcoming";
+import { Shows, Movies } from "./pages/Library";
 import { Discover } from "./pages/Discover";
 import { Profile } from "./pages/Profile";
 import { Detail } from "./pages/Detail";
@@ -35,9 +34,9 @@ export default function App() {
   return (
     <div className="app">
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/upcoming" element={<Upcoming />} />
-        <Route path="/discover" element={<Discover />} />
+        <Route path="/" element={<Shows />} />
+        <Route path="/movies" element={<Movies />} />
+        <Route path="/explore" element={<Discover />} />
         <Route path="/profile" element={<Profile user={user} onChange={refresh} />} />
         <Route path="/import" element={<ImportPage onDone={refresh} />} />
         <Route path="/title/:id" element={<Detail />} />

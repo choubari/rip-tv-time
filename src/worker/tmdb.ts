@@ -124,7 +124,7 @@ export { fetchDetail };
 export interface SeasonData {
   season: number;
   name: string;
-  episodes: { episode: number; name: string; air_date: string | null; runtime: number | null }[];
+  episodes: { episode: number; name: string; air_date: string | null; runtime: number | null; still: string | null }[];
 }
 
 /** Full season/episode structure for a show, from TMDB. Empty if no key or not resolved. */
@@ -144,6 +144,7 @@ export async function fetchSeasons(key: string | undefined, tmdbId: number): Pro
         name: e.name ?? "",
         air_date: e.air_date || null,
         runtime: e.runtime ?? null,
+        still: e.still_path || null,
       })),
     });
   }

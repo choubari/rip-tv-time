@@ -1,10 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { HomeIcon, CalendarIcon, SearchIcon, UserIcon } from "./icons";
+import { TvIcon, FilmIcon, SearchIcon, UserIcon } from "./icons";
 
 const tabs = [
-  { to: "/", label: "Home", Icon: HomeIcon, end: true },
-  { to: "/upcoming", label: "To Watch", Icon: CalendarIcon },
-  { to: "/discover", label: "Discover", Icon: SearchIcon },
+  { to: "/", label: "Shows", Icon: TvIcon, end: true },
+  { to: "/movies", label: "Movies", Icon: FilmIcon },
+  { to: "/explore", label: "Explore", Icon: SearchIcon },
   { to: "/profile", label: "Profile", Icon: UserIcon },
 ];
 

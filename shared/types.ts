@@ -15,17 +15,18 @@ export type Status =
 export const STATUS_ORDER: Status[] = [
   "watching",
   "up_to_date",
-  "watch_later",
   "not_started",
+  "watch_later",
   "watched",
   "stopped",
 ];
 
+// Wording mirrors the TV Time app.
 export const STATUS_LABEL: Record<Status, string> = {
   watching: "Watching",
-  up_to_date: "Up to date",
+  up_to_date: "Watched for a while",
   watch_later: "Watch later",
-  not_started: "Haven't watched",
+  not_started: "To watch",
   watched: "Watched",
   stopped: "Stopped watching",
 };

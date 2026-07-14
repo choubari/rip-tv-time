@@ -123,6 +123,28 @@ img { display: block; }
 .ep-check { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); background: transparent; display: flex; align-items: center; justify-content: center; color: transparent; flex: none; }
 .ep-check.on { background: var(--primary); border-color: var(--primary); color: #fff; }
 
+/* Horizontal poster rows (Profile showcase) */
+.row { display: flex; gap: 12px; overflow-x: auto; padding: 8px 16px 4px; scrollbar-width: none; }
+.row::-webkit-scrollbar { display: none; }
+.row .poster { flex: 0 0 108px; width: 108px; }
+.section-head.link { justify-content: space-between; }
+.section-head .chev { color: var(--text-dim); margin-left: auto; }
+.section-head .heart { color: var(--primary); display: inline-flex; }
+
+/* About / Episodes tabs on the detail page */
+.tabs { display: flex; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10; }
+.tabs button { flex: 1; background: none; border: none; color: var(--text-dim); font-weight: 700; padding: 14px 0; font-size: 14px; letter-spacing: .3px; text-transform: uppercase; border-bottom: 3px solid transparent; }
+.tabs button.active { color: var(--text); border-bottom-color: var(--primary); }
+
+/* Season accordion + episode rows with thumbnails */
+.season-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--bg-elev); border-radius: 10px; margin: 8px 16px 0; cursor: pointer; }
+.season-head h3 { margin: 0; font-size: 15px; flex: 1; }
+.season-head .prog { font-size: 12px; color: var(--text-dim); }
+.ep-thumb { width: 64px; height: 40px; border-radius: 6px; object-fit: cover; background: var(--bg-elev-2); flex: none; }
+.ep-check.done { background: #21d07a; border-color: #21d07a; color: #fff; } /* TV Time uses green for watched */
+.continue-card { display: flex; align-items: center; gap: 12px; background: var(--bg-elev); border-radius: 12px; padding: 10px; margin: 8px 16px; }
+.score-badge { display: inline-flex; align-items: center; gap: 3px; background: var(--primary); color: #fff; font-weight: 800; font-size: 12px; padding: 3px 7px; border-radius: 6px; }
+
 .empty { text-align: center; color: var(--text-dim); padding: 60px 24px; }
 .spinner { width: 22px; height: 22px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -38,3 +38,13 @@ export function PosterGrid({ items, showProgress }: { items: LibraryItem[]; show
     </div>
   );
 }
+
+export function PosterRow({ items }: { items: LibraryItem[] }) {
+  return (
+    <div className="row">
+      {items.map((i) => (
+        <Poster key={i.id} item={i} />
+      ))}
+    </div>
+  );
+}

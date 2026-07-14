@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { Stats, UserProfile } from "../../../shared/types";
+import type { LibraryItem, Stats, UserProfile } from "../../../shared/types";
 import { api } from "../lib/api";
+import { PosterRow } from "../components/Poster";
+import { StarIcon } from "../components/icons";
 
 function hours(mins: number) {
   const h = Math.round(mins / 60);
@@ -12,32 +14,37 @@ function hours(mins: number) {
 
 export function Profile({ user, onChange }: { user: UserProfile; onChange: () => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [lib, setLib] = useState<LibraryItem[]>([]);
   const nav = useNavigate();
-  useEffect(() => { api.stats().then(setStats).catch(() => {}); }, []);
 
-  async function logout() {
-    await api.logout();
-    onChange();
-    nav("/");
-  }
+  useEffect(() => {
+    api.stats().then(setStats).catch(() => {});
+    api.library().then(setLib).catch(() => {});
+  }, []);
+
+  async function logout() { await api.logout(); onChange(); nav("/"); }
+
+  const shows = lib.filter((i) => i.kind === "show");
+  const favorites = lib.filter((i) => i.is_favorite);
+  const movies = lib.filter((i) => i.kind === "movie");
 
   return (
     <>
-      {user.cover_url ? (
-        <div style={{ position: "relative", aspectRatio: "16/7", overflow: "hidden" }}>
-          <img src={user.cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.65 }} />
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(transparent, var(--bg))" }} />
+      {/* Cover header */}
+      <div style={{ position: "relative", aspectRatio: "16/8", overflow: "hidden", background: "var(--bg-elev-2)" }}>
+        {user.cover_url && <img src={user.cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }} />}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(transparent 40%, var(--bg))" }} />
+        <div style={{ position: "absolute", bottom: 12, left: 16 }}>
+          <h1 style={{ margin: 0, fontSize: 24 }}>{user.name || user.email.split("@")[0]}</h1>
+          {user.bio && <p className="muted" style={{ margin: "2px 0 0", fontSize: 13 }}>{user.bio}</p>}
         </div>
-      ) : (
-        <div className="topbar"><h1>Profile</h1></div>
-      )}
-
-      <div style={{ padding: "8px 16px 0" }}>
-        <h1 style={{ margin: "0 0 2px" }}>{user.name || user.email.split("@")[0]}</h1>
-        <p className="muted" style={{ marginTop: 0 }}>{user.email}</p>
-        {user.bio && <p>{user.bio}</p>}
       </div>
 
+      {shows.length > 0 && <Showcase title="Shows" to="/" items={shows} />}
+      {favorites.length > 0 && <Showcase title="Favorites" to="/" items={favorites} heart />}
+      {movies.length > 0 && <Showcase title="Movies" to="/movies" items={movies} />}
+
+      <div className="section-head"><h2>Stats</h2></div>
       <div className="stat-grid">
         <Stat num={stats?.shows} label="TV Shows" />
         <Stat num={stats?.movies_watched} label="Movies watched" />
@@ -54,6 +61,30 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
         <button className="btn ghost" onClick={logout}>Log out</button>
       </div>
     </>
+  );
+}
+
+function Showcase({ title, to, items, heart }: { title: string; to: string; items: LibraryItem[]; heart?: boolean }) {
+  return (
+    <section>
+      <Link to={to} className="section-head link">
+        <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {heart && <span className="heart"><StarIcon size={18} filled /></span>}{title}
+        </h2>
+        <span className="chev">›</span>
+      </Link>
+      <PosterRow items={items.slice(0, 20)} />
+    </section>
+  );
+}
+
+function Stat({ num, text, label, accent }: { num?: number; text?: string; label: string; accent?: boolean }) {
+  const display = text ?? num;
+  return (
+    <div className="stat">
+      <div className={`num ${accent ? "accent" : ""}`}>{display === undefined ? "—" : typeof display === "number" ? display.toLocaleString() : display}</div>
+      <div className="label">{label}</div>
+    </div>
   );
 }
 
@@ -88,16 +119,6 @@ function TmdbKeySettings() {
         <button className="btn" disabled={busy || !key.trim()} onClick={save}>{busy ? "…" : "Save"}</button>
       </div>
       {msg && <p style={{ fontSize: 13, marginTop: 8 }}>{msg}</p>}
-    </div>
-  );
-}
-
-function Stat({ num, text, label, accent }: { num?: number; text?: string; label: string; accent?: boolean }) {
-  const display = text ?? (num ?? undefined);
-  return (
-    <div className="stat">
-      <div className={`num ${accent ? "accent" : ""}`}>{display === undefined ? "—" : display.toLocaleString?.() ?? display}</div>
-      <div className="label">{label}</div>
     </div>
   );
 }
