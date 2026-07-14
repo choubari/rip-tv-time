@@ -47,10 +47,14 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
       const id = titleId(t);
       stmts.push(
         env.DB.prepare(
+          // On re-import, force shows to re-resolve their episode total (so the
+          // specials-excluding fix and newly-aired episodes are picked up) while
+          // keeping the existing poster until the refresh lands.
           `INSERT INTO titles (id, kind, tvdb_id, imdb_id, name, runtime) VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              runtime = COALESCE(titles.runtime, excluded.runtime),
-             resolve_failed = CASE WHEN titles.poster_path IS NULL THEN 0 ELSE titles.resolve_failed END`,
+             total_episodes = CASE WHEN titles.kind = 'show' THEN NULL ELSE titles.total_episodes END,
+             resolve_failed = 0`,
         ).bind(id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime),
       );
       stmts.push(
@@ -106,7 +110,9 @@ export async function tmdbKey(env: Env): Promise<string | undefined> {
 export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: number; remaining: number }> {
   const key = await tmdbKey(env);
   const { results } = await env.DB.prepare(
-    "SELECT id, kind, tvdb_id, imdb_id, name, runtime FROM titles WHERE poster_path IS NULL AND resolve_failed = 0 LIMIT ?",
+    // Needs resolution if it has no poster, or it's a show whose episode total was
+    // cleared for recompute on the last import.
+    "SELECT id, kind, tvdb_id, imdb_id, name, runtime FROM titles WHERE resolve_failed = 0 AND (poster_path IS NULL OR (kind = 'show' AND total_episodes IS NULL)) LIMIT ?",
   ).bind(limit).all<{ id: string; kind: "show" | "movie"; tvdb_id: number | null; imdb_id: string | null; name: string; runtime: number | null }>();
 
   let resolved = 0;
@@ -122,7 +128,7 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
       await env.DB.prepare("UPDATE titles SET resolve_failed = 1 WHERE id = ?").bind(row.id).run();
     }
   }
-  const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE poster_path IS NULL AND resolve_failed = 0").first<{ c: number }>();
+  const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE resolve_failed = 0 AND (poster_path IS NULL OR (kind = 'show' AND total_episodes IS NULL))").first<{ c: number }>();
   return { resolved, remaining: rem?.c ?? 0 };
 }
 
@@ -153,7 +159,7 @@ export async function getLibrary(env: Env, userId: string, kind?: string): Promi
   const where = kind ? "AND l.kind = ?" : "";
   const stmt = env.DB.prepare(
     `SELECT t.*, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at,
-            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id) AS episodes_watched
+            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0) AS episodes_watched
      FROM library l JOIN titles t ON t.id = l.title_id
      WHERE l.user_id = ? ${where}
      ORDER BY l.last_watched_at DESC NULLS LAST, l.added_at DESC NULLS LAST, t.name COLLATE NOCASE ASC`,
@@ -168,10 +174,11 @@ export async function getLists(env: Env, userId: string): Promise<import("../../
   for (const l of lists) {
     const { results } = await env.DB.prepare(
       `SELECT t.*, li.ordering, lib.status, lib.is_favorite, lib.rating, lib.added_at, lib.last_watched_at,
-              (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = ? AND w.title_id = t.id) AS episodes_watched
+              (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = ? AND w.title_id = t.id AND w.season > 0) AS episodes_watched
        FROM list_items li JOIN titles t ON t.id = li.title_id
        LEFT JOIN library lib ON lib.title_id = t.id AND lib.user_id = ?
-       WHERE li.list_id = ? ORDER BY li.ordering`,
+       WHERE li.list_id = ?
+       ORDER BY lib.last_watched_at DESC NULLS LAST, lib.added_at DESC NULLS LAST, t.name COLLATE NOCASE ASC`,
     ).bind(userId, userId, l.id).all<any>();
     out.push({ id: l.id, name: l.name, count: results.length, items: results.map(rowToItem) });
   }
@@ -195,11 +202,11 @@ export async function getStats(env: Env, userId: string): Promise<Stats> {
   const q = async (sql: string) => (await env.DB.prepare(sql).bind(userId).first<any>()) ?? {};
   const shows = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'show'");
   const movies = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'movie'");
-  const eps = await q("SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ?");
+  const eps = await q("SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ? AND season > 0");
   const moviesWatched = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind='movie' AND status='finished'");
   // Watch time: prefer the real per-episode runtime from the export, then the
   // show's average runtime, then a 40m default. Movies use their own runtime.
-  const tv = await q("SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ?");
+  const tv = await q("SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ? AND w.season > 0");
   const mv = await q("SELECT COALESCE(SUM(COALESCE(t.runtime,100)),0) m FROM library l JOIN titles t ON t.id=l.title_id WHERE l.user_id = ? AND l.kind='movie' AND l.status='finished'");
   return { shows: shows.c, movies: movies.c, episodes_watched: eps.c, movies_watched: moviesWatched.c, tv_minutes: tv.m, movie_minutes: mv.m };
 }

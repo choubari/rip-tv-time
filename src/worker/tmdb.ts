@@ -35,6 +35,10 @@ async function tmdb<T>(key: string | undefined, path: string, params: Record<str
 }
 
 function shapeTv(d: any): TmdbMeta {
+  // Exclude specials (season 0) from the episode total, so a fully-watched show
+  // isn't stuck "in progress" because of unwatched specials.
+  const regular = (d.seasons ?? []).filter((s: any) => s.season_number > 0);
+  const totalRegular = regular.reduce((n: number, s: any) => n + (s.episode_count ?? 0), 0);
   return {
     tmdb_id: d.id,
     name: d.name ?? d.original_name,
@@ -43,7 +47,7 @@ function shapeTv(d: any): TmdbMeta {
     backdrop_path: d.backdrop_path || null,
     release_date: d.first_air_date || null,
     runtime: Array.isArray(d.episode_run_time) && d.episode_run_time.length ? d.episode_run_time[0] : null,
-    total_episodes: d.number_of_episodes ?? null,
+    total_episodes: totalRegular || d.number_of_episodes || null,
     genres: (d.genres ?? []).map((g: any) => g.name),
   };
 }

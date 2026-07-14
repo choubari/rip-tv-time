@@ -51,8 +51,10 @@ npm run dev                      # http://localhost:5173
 > No TMDB key? Everything still works — titles just show as text placeholders.
 > Added the key after importing? Just hit **Re-import** and posters will fill in.
 
-> **Upgrading an existing local checkout?** The schema changed — run
-> `npm run db:reset:local` to recreate the local tables.
+> **Upgrading an existing local checkout?** Run `npm run db:migrate:local` — it's
+> additive (`CREATE TABLE IF NOT EXISTS`), so it adds any new tables **without
+> deleting your data**. Then just re-import (titles dedupe by id, so nothing is
+> duplicated). Only use `npm run db:reset:local` if you want a clean slate.
 
 ## Deploy to Cloudflare
 

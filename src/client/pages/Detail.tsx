@@ -30,6 +30,7 @@ export function Detail() {
     if (!t) return [];
     const bySeason = new Map<number, SeasonData>();
     for (const e of t.episodes) {
+      if (e.season <= 0) continue; // ignore specials
       if (!bySeason.has(e.season)) bySeason.set(e.season, { season: e.season, name: `Season ${e.season}`, episodes: [] });
       bySeason.get(e.season)!.episodes.push({ episode: e.episode, name: "", air_date: e.watched_at, runtime: null, still: null });
     }
@@ -51,7 +52,8 @@ export function Detail() {
   }
 
   const total = showSeasons.reduce((n, s) => n + s.episodes.length, 0) || t.total_episodes || 0;
-  const pct = total ? Math.min(100, Math.round((watched.size / total) * 100)) : 0;
+  const watchedRegular = [...watched].filter((k) => Number(k.split(":")[0]) > 0).length;
+  const pct = total ? Math.min(100, Math.round((watchedRegular / total) * 100)) : 0;
 
   // Next episode to watch (first unwatched in season/episode order).
   const nextEp = (() => {
