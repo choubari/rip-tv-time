@@ -23,6 +23,19 @@ export function Detail() {
     }).catch(() => setT(null));
   }, [id]);
 
+  // Full episode list from TMDB when available; else fall back to what we know was
+  // watched. Declared before any early return so hook order stays stable.
+  const showSeasons: SeasonData[] = useMemo(() => {
+    if (seasons && seasons.length) return seasons;
+    if (!t) return [];
+    const bySeason = new Map<number, SeasonData>();
+    for (const e of t.episodes) {
+      if (!bySeason.has(e.season)) bySeason.set(e.season, { season: e.season, name: `Season ${e.season}`, episodes: [] });
+      bySeason.get(e.season)!.episodes.push({ episode: e.episode, name: "", air_date: e.watched_at, runtime: null, still: null });
+    }
+    return [...bySeason.values()].map((s) => ({ ...s, episodes: s.episodes.sort((a, b) => a.episode - b.episode) })).sort((a, b) => a.season - b.season);
+  }, [seasons, t]);
+
   if (!t) return <Loading />;
   const isShow = t.kind === "show";
 
@@ -36,17 +49,6 @@ export function Detail() {
   async function setSeasonAll(s: SeasonData, on: boolean) {
     for (const e of s.episodes) await setEp(s.season, e.episode, on);
   }
-
-  // Full episode list from TMDB when available; else fall back to what we know was watched.
-  const showSeasons: SeasonData[] = useMemo(() => {
-    if (seasons && seasons.length) return seasons;
-    const bySeason = new Map<number, SeasonData>();
-    for (const e of t.episodes) {
-      if (!bySeason.has(e.season)) bySeason.set(e.season, { season: e.season, name: `Season ${e.season}`, episodes: [] });
-      bySeason.get(e.season)!.episodes.push({ episode: e.episode, name: "", air_date: e.watched_at, runtime: null, still: null });
-    }
-    return [...bySeason.values()].map((s) => ({ ...s, episodes: s.episodes.sort((a, b) => a.episode - b.episode) })).sort((a, b) => a.season - b.season);
-  }, [seasons, t.episodes]);
 
   const total = showSeasons.reduce((n, s) => n + s.episodes.length, 0) || t.total_episodes || 0;
   const pct = total ? Math.min(100, Math.round((watched.size / total) * 100)) : 0;

@@ -17,7 +17,6 @@ export function Poster({ item, showProgress = false }: { item: LibraryItem; show
         ) : (
           <div className="placeholder">{item.name}</div>
         )}
-        {item.kind === "movie" && <span className="badge">Movie</span>}
         {item.is_favorite && <span className="fav"><StarIcon size={18} filled /></span>}
       </div>
       <div className="title">{item.name}</div>

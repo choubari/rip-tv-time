@@ -76,3 +76,18 @@ CREATE TABLE IF NOT EXISTS watched_episodes (
   PRIMARY KEY (user_id, title_id, season, episode)
 );
 CREATE INDEX IF NOT EXISTS idx_watched_user_title ON watched_episodes (user_id, title_id);
+
+-- User-created lists (imported from the export).
+CREATE TABLE IF NOT EXISTS lists (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    TEXT NOT NULL REFERENCES users(id),
+  name       TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS list_items (
+  list_id  INTEGER NOT NULL REFERENCES lists(id),
+  title_id TEXT NOT NULL REFERENCES titles(id),
+  ordering INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (list_id, title_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lists_user ON lists (user_id);

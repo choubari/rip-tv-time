@@ -1,4 +1,4 @@
-import type { LibraryItem, Stats, UserProfile } from "../../../shared/types";
+import type { LibraryItem, ListSummary, Stats, UserProfile } from "../../../shared/types";
 import type { SearchResult, SeasonData } from "../../worker/tmdb";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -36,12 +36,13 @@ export const api = {
   setTmdbKey: (tmdb_key: string) => req<{ ok: boolean; valid: boolean }>("/api/settings", json({ tmdb_key })),
 
   library: (kind?: string) => req<LibraryItem[]>(`/api/library${kind ? `?kind=${kind}` : ""}`),
-  upcoming: () => req<LibraryItem[]>("/api/upcoming"),
   stats: () => req<Stats>("/api/stats"),
   title: (id: string) => req<TitleDetail>(`/api/title/${encodeURIComponent(id)}`),
   seasons: (id: string) => req<{ seasons: SeasonData[] }>(`/api/title/${encodeURIComponent(id)}/seasons`),
   search: (q: string) => req<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
 
+  lists: () => req<ListSummary[]>("/api/lists"),
+  ensure: (kind: "show" | "movie", tmdb_id: number) => req<{ id: string }>("/api/title/ensure", json({ kind, tmdb_id })),
   add: (kind: "show" | "movie", tmdb_id: number, status?: string) => req<{ id: string }>("/api/library", json({ kind, tmdb_id, status })),
   update: (id: string, patch: Record<string, unknown>) => req(`/api/library/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }),
   toggleEpisode: (id: string, season: number, episode: number, watched: boolean) =>

@@ -1,5 +1,6 @@
 import type { Env } from "./types";
 import type { ParsedImport, LibraryItem, Stats, Status, TitleMeta } from "../../shared/types";
+import { effectiveStatus } from "../../shared/types";
 import { resolveMeta, fetchDetail } from "./tmdb";
 
 // Stable title id derived from external ids, so the row keeps the same id before
@@ -33,6 +34,8 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
   }
 
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM list_items WHERE list_id IN (SELECT id FROM lists WHERE user_id = ?)").bind(userId),
+    env.DB.prepare("DELETE FROM lists WHERE user_id = ?").bind(userId),
     env.DB.prepare("DELETE FROM watched_episodes WHERE user_id = ?").bind(userId),
     env.DB.prepare("DELETE FROM library WHERE user_id = ?").bind(userId),
   ]);
@@ -68,6 +71,20 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
     }
     await env.DB.batch(stmts);
   }
+
+  // Lists: ensure each item's title exists (may not be in the library), then link.
+  for (const list of data.lists) {
+    const res = await env.DB.prepare("INSERT INTO lists (user_id, name) VALUES (?, ?)").bind(userId, list.name).run();
+    const listId = res.meta.last_row_id;
+    const stmts: D1PreparedStatement[] = [];
+    list.items.forEach((it, i) => {
+      const id = titleId(it);
+      stmts.push(env.DB.prepare("INSERT INTO titles (id, kind, tvdb_id, imdb_id, name) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING").bind(id, it.kind, it.tvdb_id, it.imdb_id, it.name));
+      stmts.push(env.DB.prepare("INSERT INTO list_items (list_id, title_id, ordering) VALUES (?, ?, ?) ON CONFLICT DO NOTHING").bind(listId, id, i));
+    });
+    if (stmts.length) await env.DB.batch(stmts);
+  }
+
   return { titles: data.titles.length, episodes };
 }
 
@@ -118,6 +135,20 @@ function rowToMeta(r: any): TitleMeta {
   };
 }
 
+function rowToItem(r: any): LibraryItem {
+  const base = {
+    ...rowToMeta(r),
+    status: (r.status ?? "not_started") as Status,
+    is_favorite: !!r.is_favorite,
+    rating: r.rating ?? null,
+    added_at: r.added_at ?? null,
+    last_watched_at: r.last_watched_at ?? null,
+    episodes_watched: r.episodes_watched ?? 0,
+  };
+  // Grouping uses the *derived* status (watching vs paused vs finished).
+  return { ...base, status: effectiveStatus(base) };
+}
+
 export async function getLibrary(env: Env, userId: string, kind?: string): Promise<LibraryItem[]> {
   const where = kind ? "AND l.kind = ?" : "";
   const stmt = env.DB.prepare(
@@ -125,10 +156,26 @@ export async function getLibrary(env: Env, userId: string, kind?: string): Promi
             (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id) AS episodes_watched
      FROM library l JOIN titles t ON t.id = l.title_id
      WHERE l.user_id = ? ${where}
-     ORDER BY l.last_watched_at DESC NULLS LAST, l.added_at DESC`,
+     ORDER BY l.last_watched_at DESC NULLS LAST, l.added_at DESC NULLS LAST, t.name COLLATE NOCASE ASC`,
   );
   const { results } = await (kind ? stmt.bind(userId, kind) : stmt.bind(userId)).all<any>();
-  return results.map((r) => ({ ...rowToMeta(r), status: r.status as Status, is_favorite: !!r.is_favorite, rating: r.rating, added_at: r.added_at, last_watched_at: r.last_watched_at, episodes_watched: r.episodes_watched }));
+  return results.map(rowToItem);
+}
+
+export async function getLists(env: Env, userId: string): Promise<import("../../shared/types").ListSummary[]> {
+  const { results: lists } = await env.DB.prepare("SELECT id, name FROM lists WHERE user_id = ? ORDER BY id").bind(userId).all<{ id: number; name: string }>();
+  const out: import("../../shared/types").ListSummary[] = [];
+  for (const l of lists) {
+    const { results } = await env.DB.prepare(
+      `SELECT t.*, li.ordering, lib.status, lib.is_favorite, lib.rating, lib.added_at, lib.last_watched_at,
+              (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = ? AND w.title_id = t.id) AS episodes_watched
+       FROM list_items li JOIN titles t ON t.id = li.title_id
+       LEFT JOIN library lib ON lib.title_id = t.id AND lib.user_id = ?
+       WHERE li.list_id = ? ORDER BY li.ordering`,
+    ).bind(userId, userId, l.id).all<any>();
+    out.push({ id: l.id, name: l.name, count: results.length, items: results.map(rowToItem) });
+  }
+  return out;
 }
 
 export async function getTitle(env: Env, userId: string, titleId: string): Promise<(LibraryItem & { episodes: any[] }) | null> {
@@ -149,11 +196,11 @@ export async function getStats(env: Env, userId: string): Promise<Stats> {
   const shows = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'show'");
   const movies = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'movie'");
   const eps = await q("SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ?");
-  const moviesWatched = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind='movie' AND status='watched'");
+  const moviesWatched = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind='movie' AND status='finished'");
   // Watch time: prefer the real per-episode runtime from the export, then the
   // show's average runtime, then a 40m default. Movies use their own runtime.
   const tv = await q("SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ?");
-  const mv = await q("SELECT COALESCE(SUM(COALESCE(t.runtime,100)),0) m FROM library l JOIN titles t ON t.id=l.title_id WHERE l.user_id = ? AND l.kind='movie' AND l.status='watched'");
+  const mv = await q("SELECT COALESCE(SUM(COALESCE(t.runtime,100)),0) m FROM library l JOIN titles t ON t.id=l.title_id WHERE l.user_id = ? AND l.kind='movie' AND l.status='finished'");
   return { shows: shows.c, movies: movies.c, episodes_watched: eps.c, movies_watched: moviesWatched.c, tv_minutes: tv.m, movie_minutes: mv.m };
 }
 
@@ -174,6 +221,30 @@ export async function addTitle(env: Env, userId: string, kind: "show" | "movie",
   return id;
 }
 
+/** Ensure a library row exists for a title the user is interacting with. */
+async function ensureLibraryRow(env: Env, userId: string, titleId: string) {
+  await env.DB.prepare(
+    `INSERT INTO library (user_id, title_id, kind, status, added_at)
+     SELECT ?, ?, kind, 'not_started', datetime('now') FROM titles WHERE id = ?
+     ON CONFLICT(user_id, title_id) DO NOTHING`,
+  ).bind(userId, titleId, titleId).run();
+}
+
+/** Insert a title's TMDB metadata (without adding it to the library). Returns the id. */
+export async function ensureTitle(env: Env, kind: "show" | "movie", tmdbId: number): Promise<string> {
+  const id = `tmdb:${kind}:${tmdbId}`;
+  const exists = await env.DB.prepare("SELECT 1 FROM titles WHERE id = ?").bind(id).first();
+  if (exists) return id;
+  const meta = await fetchDetail(await tmdbKey(env), kind, tmdbId);
+  if (meta) {
+    await env.DB.prepare(
+      `INSERT INTO titles (id, kind, tmdb_id, name, overview, poster_path, backdrop_path, release_date, runtime, total_episodes, genres, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now')) ON CONFLICT(id) DO NOTHING`,
+    ).bind(id, kind, meta.tmdb_id, meta.name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres)).run();
+  }
+  return id;
+}
+
 export async function updateLibrary(env: Env, userId: string, titleId: string, patch: { status?: Status; is_favorite?: boolean; rating?: number | null }) {
   const sets: string[] = [];
   const binds: any[] = [];
@@ -181,12 +252,14 @@ export async function updateLibrary(env: Env, userId: string, titleId: string, p
   if (patch.is_favorite !== undefined) { sets.push("is_favorite = ?"); binds.push(patch.is_favorite ? 1 : 0); }
   if (patch.rating !== undefined) { sets.push("rating = ?"); binds.push(patch.rating); }
   if (!sets.length) return;
+  await ensureLibraryRow(env, userId, titleId);
   binds.push(userId, titleId);
   await env.DB.prepare(`UPDATE library SET ${sets.join(", ")} WHERE user_id = ? AND title_id = ?`).bind(...binds).run();
 }
 
 export async function toggleEpisode(env: Env, userId: string, titleId: string, season: number, episode: number, watched: boolean) {
   if (watched) {
+    await ensureLibraryRow(env, userId, titleId);
     await env.DB.prepare(
       "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched_at) VALUES (?, ?, ?, ?, datetime('now')) ON CONFLICT DO NOTHING",
     ).bind(userId, titleId, season, episode).run();

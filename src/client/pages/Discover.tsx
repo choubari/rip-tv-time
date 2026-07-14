@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { SearchResult } from "../../worker/tmdb";
 import { TMDB_IMG } from "../../../shared/types";
 import { api } from "../lib/api";
@@ -8,7 +8,8 @@ export function Discover() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [busy, setBusy] = useState(false);
-  const [added, setAdded] = useState<Record<number, string>>({});
+  const [opening, setOpening] = useState<number | null>(null);
+  const nav = useNavigate();
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
@@ -17,10 +18,14 @@ export function Discover() {
     try { setResults(await api.search(q)); } finally { setBusy(false); }
   }
 
-  async function add(r: SearchResult) {
-    const status = r.kind === "movie" ? "watch_later" : "not_started";
-    const { id } = await api.add(r.kind, r.tmdb_id, status);
-    setAdded((a) => ({ ...a, [r.tmdb_id]: id }));
+  // Tapping a result opens its show/movie page (creating the title record if
+  // needed). You then track it / mark episodes from there — just like TV Time.
+  async function open(r: SearchResult) {
+    setOpening(r.tmdb_id);
+    try {
+      const { id } = await api.ensure(r.kind, r.tmdb_id);
+      nav(`/title/${encodeURIComponent(id)}`);
+    } finally { setOpening(null); }
   }
 
   return (
@@ -33,25 +38,17 @@ export function Discover() {
 
       <div className="grid">
         {results.map((r) => (
-          <div className="poster" key={`${r.kind}-${r.tmdb_id}`}>
-            <Link className="art" to={added[r.tmdb_id] ? `/title/${encodeURIComponent(added[r.tmdb_id])}` : "#"} onClick={(e) => !added[r.tmdb_id] && e.preventDefault()}>
+          <button className="poster" key={`${r.kind}-${r.tmdb_id}`} onClick={() => open(r)} style={{ background: "none", border: "none", padding: 0, textAlign: "left" }}>
+            <div className="art">
               {r.poster_path ? <img src={TMDB_IMG(r.poster_path)} alt={r.name} loading="lazy" /> : <div className="placeholder">{r.name}</div>}
-              <span className="badge">{r.kind === "movie" ? "Movie" : "TV"}</span>
-            </Link>
+              {opening === r.tmdb_id && <div className="placeholder" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)" }}><div className="spinner" /></div>}
+            </div>
             <div className="title">{r.name}</div>
-            <div className="sub">{r.release_date?.slice(0, 4)}</div>
-            <button
-              className="chip"
-              style={{ marginTop: 6, width: "100%", background: added[r.tmdb_id] ? "var(--bg-elev-2)" : "var(--primary)", color: "#fff" }}
-              disabled={!!added[r.tmdb_id]}
-              onClick={() => add(r)}
-            >
-              {added[r.tmdb_id] ? "Added ✓" : "+ Track"}
-            </button>
-          </div>
+            <div className="sub">{[r.kind === "movie" ? "Movie" : "TV", r.release_date?.slice(0, 4)].filter(Boolean).join(" · ")}</div>
+          </button>
         ))}
       </div>
-      {!busy && results.length === 0 && <div className="empty">Search TMDB to track something new.</div>}
+      {!busy && results.length === 0 && <div className="empty">Search to track a new show or movie.</div>}
     </>
   );
 }

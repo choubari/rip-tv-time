@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { LibraryItem, Stats, UserProfile } from "../../../shared/types";
+import type { LibraryItem, ListSummary, Stats, UserProfile } from "../../../shared/types";
 import { api } from "../lib/api";
 import { PosterRow } from "../components/Poster";
 import { StarIcon } from "../components/icons";
@@ -15,18 +15,20 @@ function hours(mins: number) {
 export function Profile({ user, onChange }: { user: UserProfile; onChange: () => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [lib, setLib] = useState<LibraryItem[]>([]);
+  const [lists, setLists] = useState<ListSummary[]>([]);
   const nav = useNavigate();
 
   useEffect(() => {
     api.stats().then(setStats).catch(() => {});
     api.library().then(setLib).catch(() => {});
+    api.lists().then(setLists).catch(() => {});
   }, []);
 
   async function logout() { await api.logout(); onChange(); nav("/"); }
 
-  const shows = lib.filter((i) => i.kind === "show");
   const favorites = lib.filter((i) => i.is_favorite);
-  const movies = lib.filter((i) => i.kind === "movie");
+  const finishedShows = lib.filter((i) => i.kind === "show" && i.status === "finished");
+  const watchedMovies = lib.filter((i) => i.kind === "movie" && i.status === "finished");
 
   return (
     <>
@@ -40,11 +42,17 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
         </div>
       </div>
 
-      {shows.length > 0 && <Showcase title="Shows" to="/" items={shows} />}
       {favorites.length > 0 && <Showcase title="Favorites" to="/" items={favorites} heart />}
-      {movies.length > 0 && <Showcase title="Movies" to="/movies" items={movies} />}
+      {finishedShows.length > 0 && <Showcase title="Finished shows" to="/" items={finishedShows} />}
+      {watchedMovies.length > 0 && <Showcase title="Watched movies" to="/movies" items={watchedMovies} />}
+      {lists.map((l) => (
+        <section key={l.id}>
+          <div className="section-head static"><h2>{l.name}</h2><span className="count">{l.count}</span></div>
+          <PosterRow items={l.items} />
+        </section>
+      ))}
 
-      <div className="section-head"><h2>Stats</h2></div>
+      <div className="section-head static"><h2>Stats</h2></div>
       <div className="stat-grid">
         <Stat num={stats?.shows} label="TV Shows" />
         <Stat num={stats?.movies_watched} label="Movies watched" />

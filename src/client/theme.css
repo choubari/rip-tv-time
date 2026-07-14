@@ -78,9 +78,9 @@ img { display: block; }
 .poster .progressbar { height: 4px; border-radius: 3px; background: var(--bg-elev-2); margin-top: 6px; overflow: hidden; }
 .poster .progressbar span { display: block; height: 100%; background: var(--primary); }
 
-/* Section headers */
-.section-head { display: flex; align-items: baseline; gap: 10px; padding: 18px 16px 2px; }
-.section-head h2 { font-size: 16px; margin: 0; font-weight: 700; }
+/* Section headers — sticky so the current status label stays visible while scrolling */
+.section-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; position: sticky; top: calc(49px + env(safe-area-inset-top)); z-index: 15; background: rgba(15,15,15,.92); backdrop-filter: blur(12px); }
+.section-head h2 { font-size: 15px; margin: 0; font-weight: 800; }
 .section-head .count { color: var(--text-dim); font-size: 13px; }
 
 /* Buttons / inputs */
@@ -127,7 +127,8 @@ img { display: block; }
 .row { display: flex; gap: 12px; overflow-x: auto; padding: 8px 16px 4px; scrollbar-width: none; }
 .row::-webkit-scrollbar { display: none; }
 .row .poster { flex: 0 0 108px; width: 108px; }
-.section-head.link { justify-content: space-between; }
+.section-head.link { justify-content: space-between; position: static; }
+.section-head.static { position: static; }
 .section-head .chev { color: var(--text-dim); margin-left: auto; }
 .section-head .heart { color: var(--primary); display: inline-flex; }
 

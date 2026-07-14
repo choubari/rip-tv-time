@@ -4,7 +4,7 @@ import { createMagicToken, verifyMagicToken, setSessionCookie, clearSession, req
 import { sendMagicLink } from "./email";
 import { parseZips } from "./import";
 import { search, fetchSeasons } from "./tmdb";
-import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey } from "./store";
+import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey, getLists, ensureTitle } from "./store";
 import type { Status } from "../../shared/types";
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -67,13 +67,12 @@ app.get("/api/library", requireAuth, async (c) => {
 
 app.get("/api/stats", requireAuth, async (c) => c.json(await getStats(c.env, c.get("userId"))));
 
-app.get("/api/upcoming", requireAuth, async (c) => {
-  // "To watch": active shows ordered by recent activity + movies queued.
-  const lib = await getLibrary(c.env, c.get("userId"));
-  const upcoming = lib
-    .filter((i) => i.status === "watching" || i.status === "up_to_date" || i.status === "watch_later")
-    .slice(0, 60);
-  return c.json(upcoming);
+app.get("/api/lists", requireAuth, async (c) => c.json(await getLists(c.env, c.get("userId"))));
+
+// Ensure a searched title exists in the DB so its detail page can open (without tracking it).
+app.post("/api/title/ensure", requireAuth, async (c) => {
+  const { kind, tmdb_id } = await c.req.json<{ kind: "show" | "movie"; tmdb_id: number }>();
+  return c.json({ id: await ensureTitle(c.env, kind, tmdb_id) });
 });
 
 app.get("/api/title/:id", requireAuth, async (c) => {
@@ -111,7 +110,7 @@ app.post("/api/settings", requireAuth, async (c) => {
 
 app.post("/api/library", requireAuth, async (c) => {
   const { kind, tmdb_id, status } = await c.req.json<{ kind: "show" | "movie"; tmdb_id: number; status?: Status }>();
-  const id = await addTitle(c.env, c.get("userId"), kind, tmdb_id, status ?? (kind === "movie" ? "watch_later" : "not_started"));
+  const id = await addTitle(c.env, c.get("userId"), kind, tmdb_id, status ?? (kind === "movie" ? "watch_next" : "not_started"));
   return c.json({ ok: true, id });
 });
 

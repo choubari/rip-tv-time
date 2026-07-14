@@ -42,7 +42,7 @@ export function Library({ kind, heading }: { kind: Kind; heading: string }) {
             <h2>{STATUS_LABEL[status]}</h2>
             <span className="count">{list.length}</span>
           </div>
-          <PosterGrid items={list} showProgress={kind === "show" && (status === "watching" || status === "up_to_date")} />
+          <PosterGrid items={list} showProgress={kind === "show" && (status === "watching" || status === "paused")} />
         </section>
       ))}
     </>

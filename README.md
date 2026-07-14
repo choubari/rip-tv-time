@@ -41,9 +41,11 @@ npm run dev                      # http://localhost:5173
    [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
    (either the v3 "API Key" or the v4 Read Access Token works). It's validated
    instantly. This powers posters, artwork, episode lists and search.
-3. **Import** — open **Import**, drop your export `.zip`(s). For the richest data
-   upload **both** `tv-time-export.zip` and `gdpr-data.zip`. The GDPR export
-   alone works too (it carries real episode runtimes).
+3. **Import** — open **Import**, drop your export `.zip`(s). Upload **both**
+   `tv-time-export.zip` and `gdpr-data.zip` for the full picture: **favorites and
+   lists exist only in `tv-time-export.zip`**, while `gdpr-data.zip` carries real
+   episode runtimes and your profile cover. Either one works on its own, but
+   both together is best.
 4. Posters are then fetched from TMDB with a progress bar. Re-import anytime.
 
 > No TMDB key? Everything still works — titles just show as text placeholders.
