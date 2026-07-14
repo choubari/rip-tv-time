@@ -101,16 +101,36 @@ function TmdbKeySettings() {
   const [key, setKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
 
   useEffect(() => { api.getSettings().then((s) => setHas(s.has_tmdb_key)).catch(() => setHas(false)); }, []);
+
+  // Fetch posters/artwork for everything still unresolved (no re-import needed).
+  async function fetchArtwork() {
+    setProgress(0);
+    let total = 0, remaining = Infinity;
+    while (remaining > 0) {
+      const r = await api.resolve(40);
+      if (total === 0) total = r.resolved + r.remaining || 1;
+      remaining = r.remaining;
+      setProgress(Math.round(((total - remaining) / total) * 100));
+    }
+    setProgress(100);
+  }
 
   async function save() {
     setBusy(true); setMsg(null);
     try {
       const r = await api.setTmdbKey(key);
       setHas(r.valid);
-      setMsg(r.valid ? "Key saved and working ✓ Re-import to fetch posters." : "Saved, but TMDB rejected this key. Check you copied the v3 API key (or v4 token).");
       setKey("");
+      if (r.valid) {
+        setMsg("Key saved ✓ Fetching posters…");
+        await fetchArtwork();
+        setMsg("Posters fetched ✓ Your library is up to date.");
+      } else {
+        setMsg("Saved, but TMDB rejected this key. Check you copied the v3 API key (or v4 token).");
+      }
     } catch { setMsg("Could not save key."); }
     finally { setBusy(false); }
   }
@@ -126,6 +146,14 @@ function TmdbKeySettings() {
         <input className="input" placeholder={has ? "Replace key…" : "Paste TMDB key…"} value={key} onChange={(e) => setKey(e.target.value)} />
         <button className="btn" disabled={busy || !key.trim()} onClick={save}>{busy ? "…" : "Save"}</button>
       </div>
+      {has && !key && (
+        <button className="btn ghost" style={{ marginTop: 8 }} disabled={busy} onClick={() => { setBusy(true); fetchArtwork().finally(() => setBusy(false)); }}>
+          {busy ? "Fetching…" : "Fetch missing posters"}
+        </button>
+      )}
+      {progress !== null && progress < 100 && (
+        <div className="progress-line" style={{ marginTop: 10 }}><span style={{ width: `${progress}%` }} /></div>
+      )}
       {msg && <p style={{ fontSize: 13, marginTop: 8 }}>{msg}</p>}
     </div>
   );
