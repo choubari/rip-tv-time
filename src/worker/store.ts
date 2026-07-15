@@ -216,6 +216,19 @@ export async function getLibrary(env: Env, userId: string, kind?: string): Promi
   return results.map(rowToItem);
 }
 
+/** Manually attach a TMDB id to a title (by ref) and pull its artwork/metadata. */
+export async function relinkTitle(env: Env, ref: number, tmdbId: number): Promise<boolean> {
+  const row = await env.DB.prepare("SELECT id, kind FROM titles WHERE rowid = ?").bind(ref).first<{ id: string; kind: "show" | "movie" }>();
+  if (!row) return false;
+  const meta = await fetchDetail(await tmdbKey(env), row.kind, tmdbId);
+  if (!meta) return false;
+  await env.DB.prepare(
+    // Keep the export's own name + episode total; take everything else from TMDB.
+    `UPDATE titles SET tmdb_id=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
+  ).bind(meta.tmdb_id, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
+  return true;
+}
+
 /** Titles in the user's library that TMDB couldn't confidently match (no poster). */
 export async function getUnmatched(env: Env, userId: string): Promise<{ ref: number; name: string; kind: string }[]> {
   const { results } = await env.DB.prepare(
@@ -256,7 +269,7 @@ export async function getTitle(env: Env, userId: string, titleId: string, byRef 
   ).bind(userId, titleId).all<{ season: number }>();
   const regularWatched = episodes.filter((e) => e.season > 0).length;
   const item = rowToItem({ ...r, episodes_watched: regularWatched });
-  return { ...item, episodes };
+  return { ...item, tracked: r.status != null, episodes };
 }
 
 export async function getStats(env: Env, userId: string): Promise<Stats> {

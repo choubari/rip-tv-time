@@ -43,6 +43,7 @@ export const api = {
 
   lists: () => req<ListSummary[]>("/api/lists"),
   unmatched: () => req<{ ref: number; name: string; kind: string }[]>("/api/unmatched"),
+  relink: (ref: number, tmdb_id: number) => req<{ ok: boolean }>("/api/relink", json({ ref, tmdb_id })),
   ensure: (kind: "show" | "movie", tmdb_id: number) => req<{ id: string; ref: number }>("/api/title/ensure", json({ kind, tmdb_id })),
   add: (kind: "show" | "movie", tmdb_id: number, status?: string) => req<{ id: string; ref: number }>("/api/library", json({ kind, tmdb_id, status })),
   update: (id: string, patch: Record<string, unknown>) => req(`/api/library/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }),

@@ -4,7 +4,7 @@ import { createMagicToken, verifyMagicToken, setSessionCookie, clearSession, req
 import { sendMagicLink } from "./email";
 import { parseZips } from "./import";
 import { search, fetchSeasons } from "./tmdb";
-import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey, getLists, ensureTitle, refOf, getUnmatched } from "./store";
+import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey, getLists, ensureTitle, refOf, getUnmatched, relinkTitle } from "./store";
 import type { Status } from "../../shared/types";
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -70,6 +70,13 @@ app.get("/api/stats", requireAuth, async (c) => c.json(await getStats(c.env, c.g
 app.get("/api/lists", requireAuth, async (c) => c.json(await getLists(c.env, c.get("userId"))));
 
 app.get("/api/unmatched", requireAuth, async (c) => c.json(await getUnmatched(c.env, c.get("userId"))));
+
+// Manually fix a wrong/missing TMDB match by pasting the TMDB id.
+app.post("/api/relink", requireAuth, async (c) => {
+  const { ref, tmdb_id } = await c.req.json<{ ref: number; tmdb_id: number }>();
+  const ok = await relinkTitle(c.env, ref, tmdb_id);
+  return c.json({ ok });
+});
 
 // Ensure a searched title exists in the DB so its detail page can open (without tracking it).
 app.post("/api/title/ensure", requireAuth, async (c) => {

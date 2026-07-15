@@ -73,25 +73,22 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
       )}
 
       {shows.length > 0 && <Showcase title="Shows" to="/" items={shows} />}
-      {favShows.length > 0 && <Showcase title="Favorite shows" to="/" items={favShows} heart />}
+      {favShows.length > 0 && <Showcase title="Favorite shows" to="/favorites/show" items={favShows} heart />}
       {movies.length > 0 && <Showcase title="Movies" to="/movies" items={movies} />}
-      {favMovies.length > 0 && <Showcase title="Favorite movies" to="/movies" items={favMovies} heart />}
+      {favMovies.length > 0 && <Showcase title="Favorite movies" to="/favorites/movie" items={favMovies} heart />}
 
       <TmdbKeySettings />
 
       {unmatched.length > 0 && (
         <div style={{ padding: 16 }}>
-          <h2 style={{ fontSize: 16 }}>Couldn't match on TMDB <span className="count">{unmatched.length}</span></h2>
+          <h2 style={{ fontSize: 16 }}>Fix missing posters <span className="count">{unmatched.length}</span></h2>
           <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-            These titles have no reliable TMDB match, so they show without a poster. Names are kept from your export.
+            These titles have no reliable TMDB match. Find each on{" "}
+            <a style={{ color: "var(--primary)" }} href="https://www.themoviedb.org" target="_blank" rel="noreferrer">themoviedb.org</a>,
+            copy the number from its URL (e.g. <code>/tv/<b>1396</b></code>), paste it below and save.
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {unmatched.map((u) => (
-              <a key={u.ref} href={`/${u.kind}/${u.ref}`} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
-                <span>{u.name}</span>
-                <span className="muted" style={{ fontSize: 12 }}>{u.kind === "show" ? "TV" : "Movie"}</span>
-              </a>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {unmatched.map((u) => <RelinkRow key={u.ref} item={u} onDone={() => setUnmatched((cur) => cur.filter((x) => x.ref !== u.ref))} />)}
           </div>
         </div>
       )}
@@ -122,7 +119,7 @@ function Showcase({ title, to, items, heart }: { title: string; to: string; item
 function ListCard({ list }: { list: ListSummary }) {
   const posters = list.items.filter((i) => i.poster_path).slice(0, 4);
   return (
-    <div className="list-card">
+    <Link className="list-card" to={`/list/${list.id}`}>
       <div className="list-collage">
         {posters.length
           ? posters.map((i) => <img key={i.id} src={TMDB_IMG(i.poster_path!, "w342")} alt="" />)
@@ -130,6 +127,32 @@ function ListCard({ list }: { list: ListSummary }) {
       </div>
       <div className="list-overlay" />
       <div className="list-name">{list.name} <span className="muted">· {list.count}</span></div>
+    </Link>
+  );
+}
+
+function RelinkRow({ item, onDone }: { item: { ref: number; name: string; kind: string }; onDone: () => void }) {
+  const [tmdbId, setTmdbId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(false);
+
+  async function save() {
+    const n = parseInt(tmdbId.replace(/\D/g, ""), 10);
+    if (!n) return;
+    setBusy(true); setErr(false);
+    try {
+      const r = await api.relink(item.ref, n);
+      if (r.ok) onDone(); else setErr(true);
+    } catch { setErr(true); } finally { setBusy(false); }
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+      <a href={`https://www.themoviedb.org/search?query=${encodeURIComponent(item.name)}`} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 14 }}>
+        {item.name} <span className="muted" style={{ fontSize: 12 }}>· {item.kind === "show" ? "TV" : "Movie"} ↗</span>
+      </a>
+      <input className="input" style={{ width: 90, padding: "6px 8px", borderColor: err ? "var(--primary)" : undefined }} placeholder="TMDB id" value={tmdbId} onChange={(e) => setTmdbId(e.target.value)} />
+      <button className="chip" style={{ background: "var(--primary)", color: "#fff" }} disabled={busy || !tmdbId.trim()} onClick={save}>{busy ? "…" : "Save"}</button>
     </div>
   );
 }

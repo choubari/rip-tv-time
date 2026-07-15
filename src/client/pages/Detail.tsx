@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { Status } from "../../../shared/types";
-import { STATUS_ORDER, STATUS_LABEL, TMDB_IMG } from "../../../shared/types";
+import { STATUS_LABEL, TMDB_IMG } from "../../../shared/types";
+
+// Full status menu for the detail dropdown (includes "finished", which the
+// grouped tabs omit).
+const STATUS_MENU: Status[] = ["watching", "paused", "finished", "not_started", "watch_next", "stopped"];
 import type { SeasonData } from "../../worker/tmdb";
 import { api, type TitleDetail } from "../lib/api";
 import { StarIcon, CheckIcon } from "../components/icons";
@@ -115,9 +119,14 @@ export function Detail() {
 
       {(!isShow || tab === "about") && (
         <div style={{ padding: 16 }}>
+          {!t.tracked ? (
+            <button className="btn" style={{ width: "100%", marginBottom: 14 }} onClick={() => { setT({ ...t, tracked: true }); patch({ status: isShow ? "watching" : "watch_next" }); }}>
+              + Track this {isShow ? "show" : "movie"}
+            </button>
+          ) : null}
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
             <select className="input" style={{ flex: 1 }} value={t.status} onChange={(e) => patch({ status: e.target.value as Status })}>
-              {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+              {STATUS_MENU.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
             </select>
             <button className="btn ghost" style={{ color: t.is_favorite ? "var(--primary)" : undefined }} onClick={() => patch({ is_favorite: !t.is_favorite })}>
               <StarIcon filled={t.is_favorite} />

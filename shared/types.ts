@@ -45,7 +45,12 @@ export const STATUS_COLOR: Record<Status, string> = {
   not_started: "#5a5a5f", // grey
 };
 
-/** Derive the status shown in the UI from stored base status + watch activity. */
+/**
+ * The status shown in the UI. TV Time's own status (stored as the base status)
+ * is authoritative — we do NOT re-derive "finished" from episode counts, which
+ * are unreliable. The only refinement: an actively-watched show ("watching")
+ * that hasn't been touched in a while is surfaced as "paused".
+ */
 export function effectiveStatus(item: {
   kind: Kind;
   status: Status;
@@ -53,13 +58,8 @@ export function effectiveStatus(item: {
   total_episodes?: number | null;
   last_watched_at?: string | null;
 }): Status {
-  if (item.kind === "movie") return item.status; // finished / watch_next / not_started
-  if (item.status === "stopped") return "stopped";
-  const watched = item.episodes_watched ?? 0;
-  const total = item.total_episodes ?? 0;
-  if (item.status === "watch_next" && watched === 0) return "watch_next";
-  if (total > 0 && watched >= total) return "finished";
-  if (watched === 0) return "not_started";
+  if (item.status !== "watching") return item.status;
+  if ((item.episodes_watched ?? 0) === 0) return "not_started";
   const last = item.last_watched_at ? Date.parse(item.last_watched_at) : 0;
   const recent = last > 0 && Date.now() - last < RECENT_DAYS * 86400_000;
   return recent ? "watching" : "paused";
@@ -89,6 +89,7 @@ export interface LibraryItem extends TitleMeta {
   added_at: string | null;
   last_watched_at: string | null;
   episodes_watched?: number;
+  tracked?: boolean; // is this title in the user's library?
 }
 
 export interface UserProfile {

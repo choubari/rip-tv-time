@@ -13,9 +13,11 @@ import type { ParsedImport, ParsedList, ParsedTitle, Status } from "./types";
 
 export type FileMap = Record<string, string>; // filename (basename) -> text contents
 
+// TV Time's own status is authoritative — trust it rather than guessing from
+// episode counts (TVDB episode totals are often padded/wrong).
 const SHOW_STATUS: Record<string, Status> = {
-  continuing: "watching",
-  up_to_date: "watching", // "watching" vs "paused" vs "finished" is derived from activity
+  up_to_date: "finished", // caught up — watched everything aired
+  continuing: "watching", // actively following an airing show
   watch_later: "watch_next",
   not_started_yet: "not_started",
   stopped: "stopped",
@@ -225,15 +227,20 @@ export function parseExport(files: FileMap): ParsedImport {
       const eps = (sid && epsByShow.get(sid)) || (r.series_name && epsByShow.get(r.series_name)) || [];
       const seen = new Set<string>(); // de-dup repeated (season, episode) rows (rewatches)
       const uniqueEps = eps.filter((e) => { const k = `${e.season}:${e.episode}`; if (seen.has(k)) return false; seen.add(k); return true; });
-      const t = add({
+      const candidate: ParsedTitle = {
         kind: "show", uuid: r.uuid ?? null, tvdb_id: tvdb, imdb_id: null, name: r.series_name || "Untitled",
         status: gdprStatus(r, uniqueEps.length), is_favorite: false, rating: null, runtime: null,
         added_at: toIso(r.followed_at || r.created_at), last_watched_at: lastByShow.get(sid || r.series_name) ?? null,
         watched_episodes: uniqueEps,
-      });
-      // GDPR statuses are authoritative for these two hand-set states.
-      if (r.is_archived === "true") t.status = "stopped";
-      else if (r.is_for_later === "true" && t.status === "not_started") t.status = "watch_next";
+      };
+      const existed = byKey.has(keyOf(candidate));
+      const t = add(candidate);
+      // Only set status from GDPR for shows NOT already described by the richer
+      // JSON export (whose TV Time status is authoritative).
+      if (!existed) {
+        if (r.is_archived === "true") t.status = "stopped";
+        else if (r.is_for_later === "true" && t.status === "not_started") t.status = "watch_next";
+      }
     }
   }
 
