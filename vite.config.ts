@@ -13,13 +13,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
-      workbox: {
-        // SPA: serve index.html for client-side routes (e.g. /show/3) so a reload
-        // doesn't fail. Never intercept API calls.
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//],
-        cleanupOutdatedCaches: true,
-      },
+      // The caching service worker repeatedly served stale/broken responses and
+      // broke SPA reloads. Cloudflare already serves the SPA fallback server-side,
+      // so we ship a self-destroying SW: it unregisters any existing worker and
+      // clears its caches, then the app runs reliably straight from the server.
+      selfDestroying: true,
       manifest: {
         name: "rip tv time",
         short_name: "rip tv time",
