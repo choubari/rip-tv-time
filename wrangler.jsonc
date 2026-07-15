@@ -10,7 +10,7 @@
     // Vite builds the React client here; the Worker serves it and handles /api/*.
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
   },
   "observability": { "enabled": true },
   // 3×/day refresh: posters + detect newly-aired episodes (finished → watching).
@@ -19,14 +19,14 @@
     {
       "binding": "DB",
       "database_name": "rip_tv_time",
-      "database_id": "67978813-4933-4953-9218-386697e4d7d4"
-    }
+      "database_id": "67978813-4933-4953-9218-386697e4d7d4",
+    },
   ],
   "vars": {
     // App base URL used inside magic-link emails.
     "APP_URL": "https://rip-tv-time.choub.workers.dev",
     // Invite-only: only ADMIN_EMAIL, DEMO_EMAIL, and invited emails can sign in.
-    "INVITE_ONLY": "true"
+    "INVITE_ONLY": "true",
     // Secrets (set with `wrangler secret put`): TMDB_API_KEY, RESEND_API_KEY, MAIL_FROM
-  }
+  },
 }

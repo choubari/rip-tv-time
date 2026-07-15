@@ -14,7 +14,8 @@
     "db:upgrade:remote": "wrangler d1 execute rip_tv_time --remote --command \"ALTER TABLE users ADD COLUMN avatar_url TEXT\" ; wrangler d1 execute rip_tv_time --remote --command \"ALTER TABLE titles ADD COLUMN original_name TEXT\" ; wrangler d1 execute rip_tv_time --remote --command \"ALTER TABLE watched_episodes ADD COLUMN watched INTEGER NOT NULL DEFAULT 1\" ; true",
     "db:reset:local": "wrangler d1 execute rip_tv_time --local --command \"DROP TABLE IF EXISTS watched_episodes; DROP TABLE IF EXISTS library; DROP TABLE IF EXISTS titles; DROP TABLE IF EXISTS sessions; DROP TABLE IF EXISTS auth_tokens; DROP TABLE IF EXISTS users; DROP TABLE IF EXISTS app_settings;\" && npm run db:migrate:local",
     "db:migrate:remote": "wrangler d1 execute rip_tv_time --remote --file=./schema.sql && npm run db:upgrade:remote",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "fflate": "^0.8.2",
@@ -26,6 +27,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "prettier": "3.4.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",

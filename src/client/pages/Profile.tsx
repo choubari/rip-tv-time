@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { LibraryItem, ListSummary, Stats, UserProfile } from "../../../shared/types";
+import type {
+  LibraryItem,
+  ListSummary,
+  Stats,
+  UserProfile,
+} from "../../../shared/types";
 import { TMDB_IMG } from "../../../shared/types";
 import { api } from "../lib/api";
 import { PosterRow } from "../components/Poster";
@@ -14,24 +19,50 @@ function hours(mins: number) {
 }
 
 // Same order as the library API: most recent activity first, then when added.
-const key = (i: LibraryItem) => (i.last_watched_at ?? "") + "|" + (i.added_at ?? "");
-const byTracked = (a: LibraryItem, b: LibraryItem) => key(b).localeCompare(key(a));
+const key = (i: LibraryItem) =>
+  (i.last_watched_at ?? "") + "|" + (i.added_at ?? "");
+const byTracked = (a: LibraryItem, b: LibraryItem) =>
+  key(b).localeCompare(key(a));
 
-export function Profile({ user, onChange }: { user: UserProfile; onChange: () => void }) {
+export function Profile({
+  user,
+  onChange,
+}: {
+  user: UserProfile;
+  onChange: () => void;
+}) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [lib, setLib] = useState<LibraryItem[]>([]);
   const [lists, setLists] = useState<ListSummary[]>([]);
-  const [unmatched, setUnmatched] = useState<{ ref: number; name: string; kind: string }[]>([]);
+  const [unmatched, setUnmatched] = useState<
+    { ref: number; name: string; kind: string }[]
+  >([]);
   const nav = useNavigate();
 
   useEffect(() => {
-    api.stats().then(setStats).catch(() => {});
-    api.library().then(setLib).catch(() => {});
-    api.lists().then(setLists).catch(() => {});
-    api.unmatched().then(setUnmatched).catch(() => {});
+    api
+      .stats()
+      .then(setStats)
+      .catch(() => {});
+    api
+      .library()
+      .then(setLib)
+      .catch(() => {});
+    api
+      .lists()
+      .then(setLists)
+      .catch(() => {});
+    api
+      .unmatched()
+      .then(setUnmatched)
+      .catch(() => {});
   }, []);
 
-  async function logout() { await api.logout(); onChange(); nav("/"); }
+  async function logout() {
+    await api.logout();
+    onChange();
+    nav("/");
+  }
 
   const shows = lib.filter((i) => i.kind === "show").sort(byTracked);
   const movies = lib.filter((i) => i.kind === "movie").sort(byTracked);
@@ -41,41 +72,118 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
   return (
     <>
       {/* Cover header with avatar */}
-      <div style={{ position: "relative", aspectRatio: "16/8", overflow: "hidden", background: "var(--bg-elev-2)" }}>
-        {user.cover_url && <img src={user.cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }} />}
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(transparent 40%, var(--bg))" }} />
-        <div style={{ position: "absolute", bottom: 12, left: 16, display: "flex", alignItems: "flex-end", gap: 12 }}>
+      <div
+        style={{
+          position: "relative",
+          aspectRatio: "16/8",
+          overflow: "hidden",
+          background: "var(--bg-elev-2)",
+        }}
+      >
+        {user.cover_url && (
+          <img
+            src={user.cover_url}
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              opacity: 0.7,
+            }}
+          />
+        )}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(transparent 40%, var(--bg))",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: 12,
+            left: 16,
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 12,
+          }}
+        >
           <div className="avatar">
-            {user.avatar_url ? <img src={user.avatar_url} alt="" /> : <span>{(user.name || user.email)[0]?.toUpperCase()}</span>}
+            {user.avatar_url ? (
+              <img src={user.avatar_url} alt="" />
+            ) : (
+              <span>{(user.name || user.email)[0]?.toUpperCase()}</span>
+            )}
           </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: 22 }}>{user.name || user.email.split("@")[0]}</h1>
-            {user.bio && <p className="muted" style={{ margin: "2px 0 0", fontSize: 13 }}>{user.bio}</p>}
+            <h1 style={{ margin: 0, fontSize: 22 }}>
+              {user.name || user.email.split("@")[0]}
+            </h1>
+            {user.bio && (
+              <p className="muted" style={{ margin: "2px 0 0", fontSize: 13 }}>
+                {user.bio}
+              </p>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="section-head static"><h2>Stats</h2></div>
+      <div className="section-head static">
+        <h2>Stats</h2>
+      </div>
       <div className="stat-grid">
         <Stat num={stats?.shows} label="TV Shows" />
         <Stat num={stats?.movies_watched} label="Movies watched" />
         <Stat num={stats?.episodes_watched} label="Episodes watched" accent />
         <Stat num={stats?.movies} label="Movies tracked" />
-        <Stat text={stats ? hours(stats.tv_minutes) : undefined} label="Time in TV shows" accent />
-        <Stat text={stats ? hours(stats.movie_minutes) : undefined} label="Time in movies" />
+        <Stat
+          text={stats ? hours(stats.tv_minutes) : undefined}
+          label="Time in TV shows"
+          accent
+        />
+        <Stat
+          text={stats ? hours(stats.movie_minutes) : undefined}
+          label="Time in movies"
+        />
       </div>
 
       {lists.length > 0 && (
         <section>
-          <div className="section-head static"><h2>Lists</h2><span className="count">{lists.length}</span></div>
-          <div className="row">{lists.map((l) => <ListCard key={l.id} list={l} />)}</div>
+          <div className="section-head static">
+            <h2>Lists</h2>
+            <span className="count">{lists.length}</span>
+          </div>
+          <div className="row">
+            {lists.map((l) => (
+              <ListCard key={l.id} list={l} />
+            ))}
+          </div>
         </section>
       )}
 
-      {shows.length > 0 && <Showcase title="Shows" to="/all/show" items={shows} />}
-      {favShows.length > 0 && <Showcase title="Favorite shows" to="/favorites/show" items={favShows} heart />}
-      {movies.length > 0 && <Showcase title="Movies" to="/all/movie" items={movies} />}
-      {favMovies.length > 0 && <Showcase title="Favorite movies" to="/favorites/movie" items={favMovies} heart />}
+      {shows.length > 0 && (
+        <Showcase title="Shows" to="/all/show" items={shows} />
+      )}
+      {favShows.length > 0 && (
+        <Showcase
+          title="Favorite shows"
+          to="/favorites/show"
+          items={favShows}
+          heart
+        />
+      )}
+      {movies.length > 0 && (
+        <Showcase title="Movies" to="/all/movie" items={movies} />
+      )}
+      {favMovies.length > 0 && (
+        <Showcase
+          title="Favorite movies"
+          to="/favorites/movie"
+          items={favMovies}
+          heart
+        />
+      )}
 
       <TmdbKeySettings />
 
@@ -83,32 +191,84 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
 
       {unmatched.length > 0 && (
         <div style={{ padding: 16 }}>
-          <h2 style={{ fontSize: 16 }}>Fix missing posters <span className="count">{unmatched.length}</span></h2>
+          <h2 style={{ fontSize: 16 }}>
+            Fix missing posters{" "}
+            <span className="count">{unmatched.length}</span>
+          </h2>
           <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
             These titles have no reliable TMDB match. Find each on{" "}
-            <a style={{ color: "var(--primary)" }} href="https://www.themoviedb.org" target="_blank" rel="noreferrer">themoviedb.org</a>,
-            copy the number from its URL (e.g. <code>/tv/<b>1396</b></code>), paste it below and save.
+            <a
+              style={{ color: "var(--primary)" }}
+              href="https://www.themoviedb.org"
+              target="_blank"
+              rel="noreferrer"
+            >
+              themoviedb.org
+            </a>
+            , copy the number from its URL (e.g.{" "}
+            <code>
+              /tv/<b>1396</b>
+            </code>
+            ), paste it below and save.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {unmatched.map((u) => <RelinkRow key={u.ref} item={u} onDone={() => setUnmatched((cur) => cur.filter((x) => x.ref !== u.ref))} />)}
+            {unmatched.map((u) => (
+              <RelinkRow
+                key={u.ref}
+                item={u}
+                onDone={() =>
+                  setUnmatched((cur) => cur.filter((x) => x.ref !== u.ref))
+                }
+              />
+            ))}
           </div>
         </div>
       )}
 
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        <Link className="btn ghost" to="/import" style={{ textAlign: "center" }}>Re-import data</Link>
-        <button className="btn ghost" onClick={logout}>Log out</button>
+      <div
+        style={{
+          padding: 16,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <Link
+          className="btn ghost"
+          to="/import"
+          style={{ textAlign: "center" }}
+        >
+          Re-import data
+        </Link>
+        <button className="btn ghost" onClick={logout}>
+          Log out
+        </button>
       </div>
     </>
   );
 }
 
-function Showcase({ title, to, items, heart }: { title: string; to: string; items: LibraryItem[]; heart?: boolean }) {
+function Showcase({
+  title,
+  to,
+  items,
+  heart,
+}: {
+  title: string;
+  to: string;
+  items: LibraryItem[];
+  heart?: boolean;
+}) {
   return (
     <section>
       <Link to={to} className="section-head link">
         <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {heart && <span className="heart"><StarIcon size={18} filled /></span>}{title}
+          {heart && (
+            <span className="heart">
+              <StarIcon size={18} filled />
+            </span>
+          )}
+          {title}
         </h2>
         <span className="chev">›</span>
       </Link>
@@ -123,12 +283,18 @@ function ListCard({ list }: { list: ListSummary }) {
   return (
     <Link className="list-card" to={`/list/${list.id}`}>
       <div className="list-collage">
-        {posters.length
-          ? posters.map((i) => <img key={i.id} src={TMDB_IMG(i.poster_path!, "w342")} alt="" />)
-          : <div className="placeholder">{list.name}</div>}
+        {posters.length ? (
+          posters.map((i) => (
+            <img key={i.id} src={TMDB_IMG(i.poster_path!, "w342")} alt="" />
+          ))
+        ) : (
+          <div className="placeholder">{list.name}</div>
+        )}
       </div>
       <div className="list-overlay" />
-      <div className="list-name">{list.name} <span className="muted">· {list.count}</span></div>
+      <div className="list-name">
+        {list.name} <span className="muted">· {list.count}</span>
+      </div>
     </Link>
   );
 }
@@ -137,26 +303,66 @@ function ListCard({ list }: { list: ListSummary }) {
 function AdminPanel() {
   const [emails, setEmails] = useState<string[]>([]);
   const [email, setEmail] = useState("");
-  useEffect(() => { api.allowed().then(setEmails).catch(() => {}); }, []);
+  useEffect(() => {
+    api
+      .allowed()
+      .then(setEmails)
+      .catch(() => {});
+  }, []);
   async function add() {
     const e = email.trim().toLowerCase();
     if (!e) return;
-    await api.allow(e); setEmails((c) => [...new Set([...c, e])].sort()); setEmail("");
+    await api.allow(e);
+    setEmails((c) => [...new Set([...c, e])].sort());
+    setEmail("");
   }
-  async function remove(e: string) { await api.disallow(e); setEmails((c) => c.filter((x) => x !== e)); }
+  async function remove(e: string) {
+    await api.disallow(e);
+    setEmails((c) => c.filter((x) => x !== e));
+  }
   return (
     <div style={{ padding: 16 }}>
-      <h2 style={{ fontSize: 16 }}>Invited users <span className="count">{emails.length}</span></h2>
-      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Only these emails (plus you) can sign in when invite-only mode is on.</p>
+      <h2 style={{ fontSize: 16 }}>
+        Invited users <span className="count">{emails.length}</span>
+      </h2>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        Only these emails (plus you) can sign in when invite-only mode is on.
+      </p>
       <div style={{ display: "flex", gap: 8 }}>
-        <input className="input" type="email" placeholder="friend@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <button className="btn" disabled={!email.trim()} onClick={add}>Invite</button>
+        <input
+          className="input"
+          type="email"
+          placeholder="friend@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <button className="btn" disabled={!email.trim()} onClick={add}>
+          Invite
+        </button>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          marginTop: 8,
+        }}
+      >
         {emails.map((e) => (
-          <div key={e} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
+          <div
+            key={e}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "8px 0",
+              borderBottom: "1px solid var(--border)",
+              fontSize: 14,
+            }}
+          >
             <span>{e}</span>
-            <button className="chip" onClick={() => remove(e)}>Remove</button>
+            <button className="chip" onClick={() => remove(e)}>
+              Remove
+            </button>
           </div>
         ))}
       </div>
@@ -164,7 +370,13 @@ function AdminPanel() {
   );
 }
 
-function RelinkRow({ item, onDone }: { item: { ref: number; name: string; kind: string }; onDone: () => void }) {
+function RelinkRow({
+  item,
+  onDone,
+}: {
+  item: { ref: number; name: string; kind: string };
+  onDone: () => void;
+}) {
   const [tmdbId, setTmdbId] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(false);
@@ -172,32 +384,87 @@ function RelinkRow({ item, onDone }: { item: { ref: number; name: string; kind: 
   async function save() {
     const n = parseInt(tmdbId.replace(/\D/g, ""), 10);
     if (!n) return;
-    setBusy(true); setErr(false);
+    setBusy(true);
+    setErr(false);
     try {
       const r = await api.relink(item.ref, n);
-      if (r.ok) onDone(); else setErr(true);
-    } catch { setErr(true); } finally { setBusy(false); }
+      if (r.ok) onDone();
+      else setErr(true);
+    } catch {
+      setErr(true);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        alignItems: "center",
+        padding: "6px 0",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <Link to={`/${item.kind}/${item.ref}`} style={{ fontSize: 14 }}>{item.name}</Link>
-        <a href={`https://www.themoviedb.org/search?query=${encodeURIComponent(item.name)}`} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+        <Link to={`/${item.kind}/${item.ref}`} style={{ fontSize: 14 }}>
+          {item.name}
+        </Link>
+        <a
+          href={`https://www.themoviedb.org/search?query=${encodeURIComponent(item.name)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="muted"
+          style={{ fontSize: 12, marginLeft: 8 }}
+        >
           find on TMDB ↗
         </a>
       </div>
-      <input className="input" style={{ width: 90, padding: "6px 8px", borderColor: err ? "var(--primary)" : undefined }} placeholder="TMDB id" value={tmdbId} onChange={(e) => setTmdbId(e.target.value)} />
-      <button className="chip" style={{ background: "var(--primary)", color: "#fff" }} disabled={busy || !tmdbId.trim()} onClick={save}>{busy ? "…" : "Save"}</button>
+      <input
+        className="input"
+        style={{
+          width: 90,
+          padding: "6px 8px",
+          borderColor: err ? "var(--primary)" : undefined,
+        }}
+        placeholder="TMDB id"
+        value={tmdbId}
+        onChange={(e) => setTmdbId(e.target.value)}
+      />
+      <button
+        className="chip"
+        style={{ background: "var(--primary)", color: "#fff" }}
+        disabled={busy || !tmdbId.trim()}
+        onClick={save}
+      >
+        {busy ? "…" : "Save"}
+      </button>
     </div>
   );
 }
 
-function Stat({ num, text, label, accent }: { num?: number; text?: string; label: string; accent?: boolean }) {
+function Stat({
+  num,
+  text,
+  label,
+  accent,
+}: {
+  num?: number;
+  text?: string;
+  label: string;
+  accent?: boolean;
+}) {
   const display = text ?? num;
   return (
     <div className="stat">
-      <div className={`num ${accent ? "accent" : ""}`}>{display === undefined ? "—" : typeof display === "number" ? display.toLocaleString() : display}</div>
+      <div className={`num ${accent ? "accent" : ""}`}>
+        {display === undefined
+          ? "—"
+          : typeof display === "number"
+            ? display.toLocaleString()
+            : display}
+      </div>
       <div className="label">{label}</div>
     </div>
   );
@@ -211,12 +478,21 @@ function TmdbKeySettings() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
 
-  useEffect(() => { api.getSettings().then((s) => { setHas(s.has_tmdb_key); setCanEdit(s.can_edit); }).catch(() => setHas(false)); }, []);
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((s) => {
+        setHas(s.has_tmdb_key);
+        setCanEdit(s.can_edit);
+      })
+      .catch(() => setHas(false));
+  }, []);
 
   // Fetch posters/artwork for everything still unresolved (no re-import needed).
   async function fetchArtwork() {
     setProgress(0);
-    let total = 0, remaining = Infinity;
+    let total = 0,
+      remaining = Infinity;
     while (remaining > 0) {
       const r = await api.resolve(40);
       if (total === 0) total = r.resolved + r.remaining || 1;
@@ -227,7 +503,8 @@ function TmdbKeySettings() {
   }
 
   async function save() {
-    setBusy(true); setMsg(null);
+    setBusy(true);
+    setMsg(null);
     try {
       const r = await api.setTmdbKey(key);
       setHas(r.valid);
@@ -237,10 +514,15 @@ function TmdbKeySettings() {
         await fetchArtwork();
         setMsg("Posters fetched ✓ Your library is up to date.");
       } else {
-        setMsg("Saved, but TMDB rejected this key. Check you copied the v3 API key (or v4 token).");
+        setMsg(
+          "Saved, but TMDB rejected this key. Check you copied the v3 API key (or v4 token).",
+        );
       }
-    } catch { setMsg("Could not save key."); }
-    finally { setBusy(false); }
+    } catch {
+      setMsg("Could not save key.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   // The TMDB key is platform-wide and managed by the admin only.
@@ -248,22 +530,53 @@ function TmdbKeySettings() {
 
   return (
     <div style={{ padding: 16 }}>
-      <h2 style={{ fontSize: 16 }}>TMDB API key {has === true && <span style={{ color: "var(--primary)" }}>· connected</span>}</h2>
+      <h2 style={{ fontSize: 16 }}>
+        TMDB API key{" "}
+        {has === true && (
+          <span style={{ color: "var(--primary)" }}>· connected</span>
+        )}
+      </h2>
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-        Platform-wide key (admin). Needed for posters, artwork, episode lists and search. Get a free key at{" "}
-        <a style={{ color: "var(--primary)" }} href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a>.
+        Platform-wide key (admin). Needed for posters, artwork, episode lists
+        and search. Get a free key at{" "}
+        <a
+          style={{ color: "var(--primary)" }}
+          href="https://www.themoviedb.org/settings/api"
+          target="_blank"
+          rel="noreferrer"
+        >
+          themoviedb.org
+        </a>
+        .
       </p>
       <div style={{ display: "flex", gap: 8 }}>
-        <input className="input" placeholder={has ? "Replace key…" : "Paste TMDB key…"} value={key} onChange={(e) => setKey(e.target.value)} />
-        <button className="btn" disabled={busy || !key.trim()} onClick={save}>{busy ? "…" : "Save"}</button>
+        <input
+          className="input"
+          placeholder={has ? "Replace key…" : "Paste TMDB key…"}
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+        />
+        <button className="btn" disabled={busy || !key.trim()} onClick={save}>
+          {busy ? "…" : "Save"}
+        </button>
       </div>
       {has && !key && (
-        <button className="btn ghost" style={{ marginTop: 8 }} disabled={busy} onClick={() => { setBusy(true); fetchArtwork().finally(() => setBusy(false)); }}>
+        <button
+          className="btn ghost"
+          style={{ marginTop: 8 }}
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            fetchArtwork().finally(() => setBusy(false));
+          }}
+        >
           {busy ? "Fetching…" : "Fetch missing posters"}
         </button>
       )}
       {progress !== null && progress < 100 && (
-        <div className="progress-line" style={{ marginTop: 10 }}><span style={{ width: `${progress}%` }} /></div>
+        <div className="progress-line" style={{ marginTop: 10 }}>
+          <span style={{ width: `${progress}%` }} />
+        </div>
       )}
       {msg && <p style={{ fontSize: 13, marginTop: 8 }}>{msg}</p>}
     </div>

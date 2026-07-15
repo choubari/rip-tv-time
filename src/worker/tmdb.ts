@@ -18,7 +18,11 @@ export interface TmdbMeta {
   genres: string[];
 }
 
-async function tmdb<T>(key: string | undefined, path: string, params: Record<string, string> = {}): Promise<T | null> {
+async function tmdb<T>(
+  key: string | undefined,
+  path: string,
+  params: Record<string, string> = {},
+): Promise<T | null> {
   key = key?.trim();
   if (!key) return null;
   const url = new URL(BASE + path);
@@ -27,7 +31,10 @@ async function tmdb<T>(key: string | undefined, path: string, params: Record<str
   const isJwt = key.startsWith("eyJ");
   if (!isJwt) url.searchParams.set("api_key", key);
   try {
-    const res = await fetch(url.toString(), isJwt ? { headers: { Authorization: `Bearer ${key}` } } : undefined);
+    const res = await fetch(
+      url.toString(),
+      isJwt ? { headers: { Authorization: `Bearer ${key}` } } : undefined,
+    );
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -39,16 +46,23 @@ function shapeTv(d: any): TmdbMeta {
   // Exclude specials (season 0) from the episode total, so a fully-watched show
   // isn't stuck "in progress" because of unwatched specials.
   const regular = (d.seasons ?? []).filter((s: any) => s.season_number > 0);
-  const totalRegular = regular.reduce((n: number, s: any) => n + (s.episode_count ?? 0), 0);
+  const totalRegular = regular.reduce(
+    (n: number, s: any) => n + (s.episode_count ?? 0),
+    0,
+  );
   return {
     tmdb_id: d.id,
     name: d.name ?? d.original_name,
-    original_name: d.original_name && d.original_name !== d.name ? d.original_name : null,
+    original_name:
+      d.original_name && d.original_name !== d.name ? d.original_name : null,
     overview: d.overview || null,
     poster_path: d.poster_path || null,
     backdrop_path: d.backdrop_path || null,
     release_date: d.first_air_date || null,
-    runtime: Array.isArray(d.episode_run_time) && d.episode_run_time.length ? d.episode_run_time[0] : null,
+    runtime:
+      Array.isArray(d.episode_run_time) && d.episode_run_time.length
+        ? d.episode_run_time[0]
+        : null,
     total_episodes: totalRegular || d.number_of_episodes || null,
     genres: (d.genres ?? []).map((g: any) => g.name),
   };
@@ -58,7 +72,10 @@ function shapeMovie(d: any): TmdbMeta {
   return {
     tmdb_id: d.id,
     name: d.title ?? d.original_title,
-    original_name: d.original_title && d.original_title !== d.title ? d.original_title : null,
+    original_name:
+      d.original_title && d.original_title !== d.title
+        ? d.original_title
+        : null,
     overview: d.overview || null,
     poster_path: d.poster_path || null,
     backdrop_path: d.backdrop_path || null,
@@ -70,7 +87,8 @@ function shapeMovie(d: any): TmdbMeta {
 }
 
 const normName = (s: string) =>
-  s.toLowerCase()
+  s
+    .toLowerCase()
     .replace(/\(\d{4}\)/g, "")
     .replace(/['’]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
@@ -81,12 +99,16 @@ const tokensOf = (s: string) => normName(s).split(" ").filter(Boolean);
 /** Normalized edit-distance similarity (0..1). */
 function charRatio(a: string, b: string): number {
   if (!a.length || !b.length) return 0;
-  const m = a.length, n = b.length;
+  const m = a.length,
+    n = b.length;
   let prev = Array.from({ length: n + 1 }, (_, i) => i);
   for (let i = 1; i <= m; i++) {
     const cur = [i];
     for (let j = 1; j <= n; j++) {
-      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] : 1 + Math.min(prev[j], cur[j - 1], prev[j - 1]);
+      cur[j] =
+        a[i - 1] === b[j - 1]
+          ? prev[j - 1]
+          : 1 + Math.min(prev[j], cur[j - 1], prev[j - 1]);
     }
     prev = cur;
   }
@@ -105,7 +127,8 @@ function tokenSubsequence(a: string[], b: string[]): boolean {
 
 /** True if two titles are plausibly the same. Uses Jaccard + a token-prefix rule. */
 function namesMatch(a: string, b: string): boolean {
-  const ta = tokensOf(a), tb = tokensOf(b);
+  const ta = tokensOf(a),
+    tb = tokensOf(b);
   if (!ta.length || !tb.length) return false;
   if (ta.join(" ") === tb.join(" ")) return true;
   // Near-identical strings (e.g. "You're Beautiful" vs "You Are Beautiful") match;
@@ -116,8 +139,13 @@ function namesMatch(a: string, b: string): boolean {
   // "Weak Hero Class 1") matches; a word buried mid-title (e.g. "Cream" inside
   // "The Ice Cream Girls") does not, because it's not a prefix run.
   const [short, long] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
-  if (short.length >= 2 && tokenSubsequence(short, long.slice(0, short.length + 1))) return true;
-  const setA = new Set(ta), setB = new Set(tb);
+  if (
+    short.length >= 2 &&
+    tokenSubsequence(short, long.slice(0, short.length + 1))
+  )
+    return true;
+  const setA = new Set(ta),
+    setB = new Set(tb);
   let inter = 0;
   for (const t of setA) if (setB.has(t)) inter++;
   // Jaccard over union. 0.6 so a single shared common word (e.g. "Inside" vs
@@ -136,29 +164,53 @@ function namesMatch(a: string, b: string): boolean {
 export async function resolveMeta(
   key: string | undefined,
   kind: "show" | "movie",
-  ids: { tvdb_id: number | null; imdb_id: string | null; name: string; watched?: number },
+  ids: {
+    tvdb_id: number | null;
+    imdb_id: string | null;
+    name: string;
+    watched?: number;
+  },
 ): Promise<TmdbMeta | null> {
   const findKind = kind === "show" ? "tv_results" : "movie_results";
   const w = ids.watched ?? 0;
   // Name matches EITHER the localized or the original title (handles translated
   // shows, e.g. export "Black Money Love" vs TMDB "Kara Para Aşk").
-  const nameOk = (m: TmdbMeta) => namesMatch(m.name, ids.name) || (!!m.original_name && namesMatch(m.original_name, ids.name));
+  const nameOk = (m: TmdbMeta) =>
+    namesMatch(m.name, ids.name) ||
+    (!!m.original_name && namesMatch(m.original_name, ids.name));
   // "Wildly wrong" episode count → reject (Ice Cream Girls 3 for 23 watched, or
   // Vandaag Inside 898 for 39 watched). Unknown count never rejects.
-  const notWildlyOff = (m: TmdbMeta) => kind === "movie" || !w || m.total_episodes == null || (m.total_episodes >= w * 0.8 && m.total_episodes <= Math.max(w * 3, w + 6));
+  const notWildlyOff = (m: TmdbMeta) =>
+    kind === "movie" ||
+    !w ||
+    m.total_episodes == null ||
+    (m.total_episodes >= w * 0.8 && m.total_episodes <= Math.max(w * 3, w + 6));
   // A close episode count is itself strong evidence of the right show even when
   // the name is translated (Kara Para Aşk 54 ≈ 55 watched).
-  const countClose = (m: TmdbMeta) => kind === "show" && w > 0 && m.total_episodes != null && m.total_episodes >= w * 0.8 && m.total_episodes <= Math.max(w * 1.5, w + 3);
+  const countClose = (m: TmdbMeta) =>
+    kind === "show" &&
+    w > 0 &&
+    m.total_episodes != null &&
+    m.total_episodes >= w * 0.8 &&
+    m.total_episodes <= Math.max(w * 1.5, w + 3);
   // imdb id is authoritative; tvdb id is authoritative only when name OR count agrees.
   const acceptable = (m: TmdbMeta, trustExternal: boolean) =>
-    trustExternal ? notWildlyOff(m) : (nameOk(m) && notWildlyOff(m)) || countClose(m);
+    trustExternal
+      ? notWildlyOff(m)
+      : (nameOk(m) && notWildlyOff(m)) || countClose(m);
 
   for (const ext of [
-    ids.imdb_id ? { external_source: "imdb_id", id: ids.imdb_id, trust: true } : null, // imdb is reliable
-    ids.tvdb_id ? { external_source: "tvdb_id", id: String(ids.tvdb_id), trust: false } : null,
+    ids.imdb_id
+      ? { external_source: "imdb_id", id: ids.imdb_id, trust: true }
+      : null, // imdb is reliable
+    ids.tvdb_id
+      ? { external_source: "tvdb_id", id: String(ids.tvdb_id), trust: false }
+      : null,
   ]) {
     if (!ext) continue;
-    const found = await tmdb<any>(key, `/find/${ext.id}`, { external_source: ext.external_source });
+    const found = await tmdb<any>(key, `/find/${ext.id}`, {
+      external_source: ext.external_source,
+    });
     const hit = found?.[findKind]?.[0];
     if (!hit) continue;
     const detail = await fetchDetail(key, kind, hit.id);
@@ -166,18 +218,41 @@ export async function resolveMeta(
   }
 
   // Fallback: search by name, take the best name+episode match.
-  const search = await tmdb<any>(key, `/search/${kind === "show" ? "tv" : "movie"}`, { query: ids.name });
+  const search = await tmdb<any>(
+    key,
+    `/search/${kind === "show" ? "tv" : "movie"}`,
+    { query: ids.name },
+  );
   for (const r of (search?.results ?? []).slice(0, 5)) {
-    if (!namesMatch(r.name ?? r.title ?? "", ids.name) && !namesMatch(r.original_name ?? r.original_title ?? "", ids.name)) continue;
+    if (
+      !namesMatch(r.name ?? r.title ?? "", ids.name) &&
+      !namesMatch(r.original_name ?? r.original_title ?? "", ids.name)
+    )
+      continue;
     const detail = await fetchDetail(key, kind, r.id);
-    if (detail && (nameOk(detail) && notWildlyOff(detail))) return detail;
+    if (detail && nameOk(detail) && notWildlyOff(detail)) return detail;
   }
 
   // Nothing trustworthy: keep the export's own name, no poster/art.
-  return { tmdb_id: 0, name: ids.name, original_name: null, overview: null, poster_path: null, backdrop_path: null, release_date: null, runtime: null, total_episodes: null, genres: [] };
+  return {
+    tmdb_id: 0,
+    name: ids.name,
+    original_name: null,
+    overview: null,
+    poster_path: null,
+    backdrop_path: null,
+    release_date: null,
+    runtime: null,
+    total_episodes: null,
+    genres: [],
+  };
 }
 
-async function fetchDetail(key: string | undefined, kind: "show" | "movie", id: number): Promise<TmdbMeta | null> {
+async function fetchDetail(
+  key: string | undefined,
+  kind: "show" | "movie",
+  id: number,
+): Promise<TmdbMeta | null> {
   const d = await tmdb<any>(key, `/${kind === "show" ? "tv" : "movie"}/${id}`);
   if (!d) return null;
   return kind === "show" ? shapeTv(d) : shapeMovie(d);
@@ -193,7 +268,10 @@ export interface SearchResult {
 }
 
 /** Multi-search for the Discover/track page. */
-export async function search(key: string | undefined, query: string): Promise<SearchResult[]> {
+export async function search(
+  key: string | undefined,
+  query: string,
+): Promise<SearchResult[]> {
   const d = await tmdb<any>(key, "/search/multi", { query });
   if (!d?.results) return [];
   return d.results
@@ -212,7 +290,10 @@ export async function search(key: string | undefined, query: string): Promise<Se
 export { fetchDetail };
 
 /** The most recently aired episode (season, number) for a show, per TMDB. */
-export async function lastAiredEpisode(key: string | undefined, tmdbId: number): Promise<{ season: number; episode: number } | null> {
+export async function lastAiredEpisode(
+  key: string | undefined,
+  tmdbId: number,
+): Promise<{ season: number; episode: number } | null> {
   const d = await tmdb<any>(key, `/tv/${tmdbId}`);
   const e = d?.last_episode_to_air;
   if (!e || e.season_number == null) return null;
@@ -222,14 +303,25 @@ export async function lastAiredEpisode(key: string | undefined, tmdbId: number):
 export interface SeasonData {
   season: number;
   name: string;
-  episodes: { episode: number; name: string; air_date: string | null; runtime: number | null; still: string | null }[];
+  episodes: {
+    episode: number;
+    name: string;
+    air_date: string | null;
+    runtime: number | null;
+    still: string | null;
+  }[];
 }
 
 /** Full season/episode structure for a show, from TMDB. Empty if no key or not resolved. */
-export async function fetchSeasons(key: string | undefined, tmdbId: number): Promise<SeasonData[]> {
+export async function fetchSeasons(
+  key: string | undefined,
+  tmdbId: number,
+): Promise<SeasonData[]> {
   const show = await tmdb<any>(key, `/tv/${tmdbId}`);
   if (!show?.seasons) return [];
-  const numbers: number[] = show.seasons.map((s: any) => s.season_number).filter((n: number) => n > 0);
+  const numbers: number[] = show.seasons
+    .map((s: any) => s.season_number)
+    .filter((n: number) => n > 0);
   const out: SeasonData[] = [];
   for (const n of numbers) {
     const s = await tmdb<any>(key, `/tv/${tmdbId}/season/${n}`);

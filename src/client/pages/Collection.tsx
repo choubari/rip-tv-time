@@ -15,17 +15,26 @@ export function Collection({ mode }: { mode: "list" | "favorites" | "all" }) {
   useEffect(() => {
     const label = kind === "movie" ? "Movies" : "Shows";
     if (mode === "list") {
-      api.lists().then((lists) => {
-        const l = lists.find((x) => String(x.id) === id);
-        setTitle(l?.name ?? "List");
-        setItems(l?.items ?? []);
-      }).catch(() => setItems([]));
+      api
+        .lists()
+        .then((lists) => {
+          const l = lists.find((x) => String(x.id) === id);
+          setTitle(l?.name ?? "List");
+          setItems(l?.items ?? []);
+        })
+        .catch(() => setItems([]));
     } else if (mode === "favorites") {
       setTitle(`Favorite ${label.toLowerCase()}`);
-      api.library(kind).then((lib) => setItems(lib.filter((i) => i.is_favorite))).catch(() => setItems([]));
+      api
+        .library(kind)
+        .then((lib) => setItems(lib.filter((i) => i.is_favorite)))
+        .catch(() => setItems([]));
     } else {
       setTitle(`All ${label.toLowerCase()}`);
-      api.library(kind).then(setItems).catch(() => setItems([]));
+      api
+        .library(kind)
+        .then(setItems)
+        .catch(() => setItems([]));
     }
   }, [mode, id, kind]);
 
@@ -33,12 +42,26 @@ export function Collection({ mode }: { mode: "list" | "favorites" | "all" }) {
   return (
     <>
       <div className="topbar">
-        <button onClick={() => nav(-1)} style={{ background: "none", border: "none", color: "var(--text)", fontSize: 22 }}>‹</button>
+        <button
+          onClick={() => nav(-1)}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--text)",
+            fontSize: 22,
+          }}
+        >
+          ‹
+        </button>
         <h1 style={{ fontSize: 18 }}>{title}</h1>
         <div className="spacer" />
         <span className="count">{items.length}</span>
       </div>
-      {items.length ? <PosterGrid items={items} /> : <div className="empty">Nothing here yet.</div>}
+      {items.length ? (
+        <PosterGrid items={items} />
+      ) : (
+        <div className="empty">Nothing here yet.</div>
+      )}
     </>
   );
 }

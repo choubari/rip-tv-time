@@ -12,7 +12,8 @@ const ART = "https://artworks.thetvdb.com";
 let cachedToken: { token: string; at: number } | null = null;
 
 async function login(apikey: string): Promise<string | null> {
-  if (cachedToken && Date.now() - cachedToken.at < 12 * 3600_000) return cachedToken.token;
+  if (cachedToken && Date.now() - cachedToken.at < 12 * 3600_000)
+    return cachedToken.token;
   try {
     const res = await fetch(`${BASE}/login`, {
       method: "POST",
@@ -33,7 +34,10 @@ const img = (p: string | null | undefined): string | null =>
   !p ? null : p.startsWith("http") ? p : ART + p;
 
 /** Full season/episode structure for a show from TVDB (official season order). */
-export async function fetchTvdbSeasons(apikey: string | undefined, tvdbId: number): Promise<SeasonData[]> {
+export async function fetchTvdbSeasons(
+  apikey: string | undefined,
+  tvdbId: number,
+): Promise<SeasonData[]> {
   if (!apikey) return [];
   const token = await login(apikey);
   if (!token) return [];
@@ -41,16 +45,20 @@ export async function fetchTvdbSeasons(apikey: string | undefined, tvdbId: numbe
   let page = 0;
   try {
     while (page < 20) {
-      const res = await fetch(`${BASE}/series/${tvdbId}/episodes/official?page=${page}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${BASE}/series/${tvdbId}/episodes/official?page=${page}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (!res.ok) break;
       const j = (await res.json()) as any;
       const eps: any[] = j?.data?.episodes ?? [];
       for (const e of eps) {
         const s = e.seasonNumber;
         if (s == null || s <= 0) continue; // skip specials
-        if (!bySeason.has(s)) bySeason.set(s, { season: s, name: `Season ${s}`, episodes: [] });
+        if (!bySeason.has(s))
+          bySeason.set(s, { season: s, name: `Season ${s}`, episodes: [] });
         bySeason.get(s)!.episodes.push({
           episode: e.number,
           name: e.name ?? "",
@@ -66,6 +74,9 @@ export async function fetchTvdbSeasons(apikey: string | undefined, tvdbId: numbe
     return [];
   }
   return [...bySeason.values()]
-    .map((s) => ({ ...s, episodes: s.episodes.sort((a, b) => a.episode - b.episode) }))
+    .map((s) => ({
+      ...s,
+      episodes: s.episodes.sort((a, b) => a.episode - b.episode),
+    }))
     .sort((a, b) => a.season - b.season);
 }

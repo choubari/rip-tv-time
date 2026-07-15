@@ -18,11 +18,16 @@ export default function App() {
   const location = useLocation();
 
   useEffect(() => {
-    api.me().then((u) => setUser(u)).catch(() => setUser(null));
+    api
+      .me()
+      .then((u) => setUser(u))
+      .catch(() => setUser(null));
   }, []);
 
   // Reset scroll to top whenever the route changes (grids/detail should open at top).
-  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   // Background poster resolver: keeps fetching missing posters while ANY tab is
   // open, regardless of which page you're on — so leaving the Import screen no
@@ -35,26 +40,52 @@ export default function App() {
         try {
           const r = await api.resolve(20);
           if (r.remaining === 0) break;
-        } catch { break; }
+        } catch {
+          break;
+        }
         await new Promise((res) => setTimeout(res, 2500));
       }
     })();
-    return () => { stop = true; };
+    return () => {
+      stop = true;
+    };
   }, [user]);
 
   if (user === undefined) {
-    return <div className="center-screen"><div className="spinner" /></div>;
+    return (
+      <div className="center-screen">
+        <div className="spinner" />
+      </div>
+    );
   }
 
   if (!user) {
     return (
       <Routes>
-        <Route path="*" element={<Login onDone={() => api.me().then(setUser).catch(() => {})} />} />
+        <Route
+          path="*"
+          element={
+            <Login
+              onDone={() =>
+                api
+                  .me()
+                  .then(setUser)
+                  .catch(() => {})
+              }
+            />
+          }
+        />
       </Routes>
     );
   }
 
-  const refresh = () => api.me().then(setUser).catch((e) => { if (e instanceof AuthError) setUser(null); });
+  const refresh = () =>
+    api
+      .me()
+      .then(setUser)
+      .catch((e) => {
+        if (e instanceof AuthError) setUser(null);
+      });
 
   return (
     <div className="app">
@@ -62,12 +93,18 @@ export default function App() {
         <Route path="/" element={<Shows />} />
         <Route path="/movies" element={<Movies />} />
         <Route path="/explore" element={<Discover />} />
-        <Route path="/profile" element={<Profile user={user} onChange={refresh} />} />
+        <Route
+          path="/profile"
+          element={<Profile user={user} onChange={refresh} />}
+        />
         <Route path="/import" element={<ImportPage onDone={refresh} />} />
         <Route path="/show/:ref" element={<Detail />} />
         <Route path="/movie/:ref" element={<Detail />} />
         <Route path="/list/:id" element={<Collection mode="list" />} />
-        <Route path="/favorites/:kind" element={<Collection mode="favorites" />} />
+        <Route
+          path="/favorites/:kind"
+          element={<Collection mode="favorites" />}
+        />
         <Route path="/all/:kind" element={<Collection mode="all" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

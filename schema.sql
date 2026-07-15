@@ -14,6 +14,13 @@ CREATE TABLE IF NOT EXISTS allowed_emails (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Fixed-window rate limiting (per key: user/IP + action).
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key      TEXT PRIMARY KEY,
+  count    INTEGER NOT NULL,
+  reset_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id         TEXT PRIMARY KEY,
   email      TEXT UNIQUE NOT NULL,

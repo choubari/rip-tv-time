@@ -43,8 +43,10 @@ const secToMin = (v: unknown): number | null => {
 };
 
 function pickId(id: any): { tvdb: number | null; imdb: string | null } {
-  const tvdb = id && typeof id.tvdb === "number" && id.tvdb > 0 ? id.tvdb : null;
-  const imdb = id && typeof id.imdb === "string" && id.imdb !== "-1" ? id.imdb : null;
+  const tvdb =
+    id && typeof id.tvdb === "number" && id.tvdb > 0 ? id.tvdb : null;
+  const imdb =
+    id && typeof id.imdb === "string" && id.imdb !== "-1" ? id.imdb : null;
   return { tvdb, imdb };
 }
 
@@ -58,18 +60,32 @@ export function parseCsv(text: string): Record<string, string>[] {
     const c = text[i];
     if (inQuotes) {
       if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else inQuotes = false;
       } else field += c;
     } else if (c === '"') inQuotes = true;
-    else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
-    else if (c === "\r") { /* ignore */ }
-    else field += c;
+    else if (c === ",") {
+      row.push(field);
+      field = "";
+    } else if (c === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (c === "\r") {
+      /* ignore */
+    } else field += c;
   }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
+  if (field.length || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
   if (!rows.length) return [];
   const header = rows[0];
-  return rows.slice(1)
+  return rows
+    .slice(1)
     .filter((r) => r.length > 1 || (r.length === 1 && r[0] !== ""))
     .map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ""])));
 }
@@ -77,14 +93,24 @@ export function parseCsv(text: string): Record<string, string>[] {
 function safeJson<T>(files: FileMap, name: string): T | null {
   const raw = files[name];
   if (!raw) return null;
-  try { return JSON.parse(raw) as T; } catch { return null; }
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
 }
 
 export function parseExport(files: FileMap): ParsedImport {
   const titles: ParsedTitle[] = [];
   const byKey = new Map<string, ParsedTitle>();
-  const keyOf = (t: Pick<ParsedTitle, "kind" | "tvdb_id" | "imdb_id" | "name">) =>
-    t.tvdb_id ? `tvdb:${t.kind}:${t.tvdb_id}` : t.imdb_id ? `imdb:${t.kind}:${t.imdb_id}` : `name:${t.kind}:${t.name.toLowerCase()}`;
+  const keyOf = (
+    t: Pick<ParsedTitle, "kind" | "tvdb_id" | "imdb_id" | "name">,
+  ) =>
+    t.tvdb_id
+      ? `tvdb:${t.kind}:${t.tvdb_id}`
+      : t.imdb_id
+        ? `imdb:${t.kind}:${t.imdb_id}`
+        : `name:${t.kind}:${t.name.toLowerCase()}`;
 
   const add = (t: ParsedTitle) => {
     const k = keyOf(t);
@@ -92,20 +118,34 @@ export function parseExport(files: FileMap): ParsedImport {
     if (existing) {
       existing.is_favorite ||= t.is_favorite;
       // Union episodes across sources (JSON has the full list; GDPR marks watched).
-      const seen = new Map(existing.watched_episodes.map((e) => [`${e.season}:${e.episode}`, e]));
+      const seen = new Map(
+        existing.watched_episodes.map((e) => [`${e.season}:${e.episode}`, e]),
+      );
       for (const e of t.watched_episodes) {
         const kk = `${e.season}:${e.episode}`;
         const ex = seen.get(kk);
-        if (!ex) { existing.watched_episodes.push(e); seen.set(kk, e); }
-        else {
-          if (e.watched && !ex.watched) { ex.watched = true; ex.watched_at = e.watched_at; }
+        if (!ex) {
+          existing.watched_episodes.push(e);
+          seen.set(kk, e);
+        } else {
+          if (e.watched && !ex.watched) {
+            ex.watched = true;
+            ex.watched_at = e.watched_at;
+          }
           if (ex.runtime == null && e.runtime != null) ex.runtime = e.runtime;
         }
       }
-      if (t.last_watched_at && (!existing.last_watched_at || t.last_watched_at > existing.last_watched_at)) existing.last_watched_at = t.last_watched_at;
+      if (
+        t.last_watched_at &&
+        (!existing.last_watched_at ||
+          t.last_watched_at > existing.last_watched_at)
+      )
+        existing.last_watched_at = t.last_watched_at;
       if (existing.runtime == null) existing.runtime = t.runtime;
-      if (existing.total_episodes == null && t.total_episodes != null) existing.total_episodes = t.total_episodes;
-      if (t.status === "finished" && existing.status === "watch_next") existing.status = "finished";
+      if (existing.total_episodes == null && t.total_episodes != null)
+        existing.total_episodes = t.total_episodes;
+      if (t.status === "finished" && existing.status === "watch_next")
+        existing.status = "finished";
       return existing;
     }
     byKey.set(k, t);
@@ -124,26 +164,52 @@ export function parseExport(files: FileMap): ParsedImport {
       for (const ep of season.episodes ?? []) {
         // Store every episode (watched or not) so the detail page shows the full list.
         const w = ep.is_watched ? toIso(ep.watched_at) : null;
-        eps.push({ season: season.number, episode: ep.number, watched: !!ep.is_watched, watched_at: w, rating: ep.rating ?? null, runtime: null });
+        eps.push({
+          season: season.number,
+          episode: ep.number,
+          watched: !!ep.is_watched,
+          watched_at: w,
+          rating: ep.rating ?? null,
+          runtime: null,
+        });
         if (w && (!last || w > last)) last = w;
       }
     }
     return {
-      kind: "show", uuid: s.uuid ?? null, tvdb_id: tvdb, imdb_id: imdb, name: s.title ?? "Untitled",
-      status: SHOW_STATUS[s.status] ?? (eps.length ? "watching" : "not_started"),
-      is_favorite: favorite, rating: s.rating ?? null, runtime: null, total_episodes: totalRegular || null,
-      added_at: toIso(s.created_at), last_watched_at: last, watched_episodes: eps,
+      kind: "show",
+      uuid: s.uuid ?? null,
+      tvdb_id: tvdb,
+      imdb_id: imdb,
+      name: s.title ?? "Untitled",
+      status:
+        SHOW_STATUS[s.status] ?? (eps.length ? "watching" : "not_started"),
+      is_favorite: favorite,
+      rating: s.rating ?? null,
+      runtime: null,
+      total_episodes: totalRegular || null,
+      added_at: toIso(s.created_at),
+      last_watched_at: last,
+      watched_episodes: eps,
     };
   };
 
   const parseMovie = (m: any): ParsedTitle => {
     const { tvdb, imdb } = pickId(m.id);
     return {
-      kind: "movie", uuid: m.uuid ?? null, tvdb_id: tvdb, imdb_id: imdb, name: m.title ?? "Untitled",
-      status: m.is_watched ? "finished" : "watch_next", is_favorite: false, rating: m.rating ?? null,
+      kind: "movie",
+      uuid: m.uuid ?? null,
+      tvdb_id: tvdb,
+      imdb_id: imdb,
+      name: m.title ?? "Untitled",
+      status: m.is_watched ? "finished" : "watch_next",
+      is_favorite: false,
+      rating: m.rating ?? null,
       // `added_at` is when the movie was added to the watchlist (real order);
       // `created_at` on list items is just the export-render time. Prefer added_at.
-      runtime: m.runtime ?? null, added_at: toIso(m.added_at ?? m.created_at), last_watched_at: toIso(m.watched_at), watched_episodes: [],
+      runtime: m.runtime ?? null,
+      added_at: toIso(m.added_at ?? m.created_at),
+      last_watched_at: toIso(m.watched_at),
+      watched_episodes: [],
     };
   };
 
@@ -158,7 +224,9 @@ export function parseExport(files: FileMap): ParsedImport {
   const favorites = safeJson<any>(files, "favorites.json");
   if (favorites) {
     (favorites.shows ?? []).forEach((s: any) => add(parseShow(s, true)));
-    (favorites.movies ?? []).forEach((m: any) => add({ ...parseMovie(m), is_favorite: true }));
+    (favorites.movies ?? []).forEach((m: any) =>
+      add({ ...parseMovie(m), is_favorite: true }),
+    );
   }
 
   const listMovies = safeJson<any[]>(files, "lists.json");
@@ -197,7 +265,9 @@ export function parseExport(files: FileMap): ParsedImport {
   const v2 = files["tracking-prod-records-v2.csv"];
   if (v2) {
     const rows = parseCsv(v2);
-    const showRows = rows.filter((r) => !r.episode_number && (r.s_id || r.series_name) && !r.movie_name);
+    const showRows = rows.filter(
+      (r) => !r.episode_number && (r.s_id || r.series_name) && !r.movie_name,
+    );
     const epRows = rows.filter((r) => r.episode_number);
 
     // Group watched episodes by show tvdb id.
@@ -208,17 +278,30 @@ export function parseExport(files: FileMap): ParsedImport {
       if (!sid) continue;
       const list = epsByShow.get(sid) ?? [];
       const w = toIso(e.created_at);
-      list.push({ season: Number(e.season_number) || 1, episode: Number(e.episode_number) || 0, watched: true, watched_at: w, rating: null, runtime: secToMin(e.runtime) });
+      list.push({
+        season: Number(e.season_number) || 1,
+        episode: Number(e.episode_number) || 0,
+        watched: true,
+        watched_at: w,
+        rating: null,
+        runtime: secToMin(e.runtime),
+      });
       epsByShow.set(sid, list);
       const prev = lastByShow.get(sid);
       if (w && (!prev || w > prev)) lastByShow.set(sid, w);
     }
 
-    const gdprStatus = (r: Record<string, string>, watchedCount: number): Status =>
-      r.is_archived === "true" ? "stopped"
-        : r.is_for_later === "true" ? "watch_next"
-        : watchedCount > 0 ? "watching"
-        : "not_started";
+    const gdprStatus = (
+      r: Record<string, string>,
+      watchedCount: number,
+    ): Status =>
+      r.is_archived === "true"
+        ? "stopped"
+        : r.is_for_later === "true"
+          ? "watch_next"
+          : watchedCount > 0
+            ? "watching"
+            : "not_started";
 
     // Build every GDPR show and merge it in. add() unions watched episodes into a
     // matching JSON show (or creates the show if the JSON export missed it), so we
@@ -226,13 +309,29 @@ export function parseExport(files: FileMap): ParsedImport {
     for (const r of showRows) {
       const sid = r.s_id;
       const tvdb = sid && /^\d+$/.test(sid) ? Number(sid) : null;
-      const eps = (sid && epsByShow.get(sid)) || (r.series_name && epsByShow.get(r.series_name)) || [];
+      const eps =
+        (sid && epsByShow.get(sid)) ||
+        (r.series_name && epsByShow.get(r.series_name)) ||
+        [];
       const seen = new Set<string>(); // de-dup repeated (season, episode) rows (rewatches)
-      const uniqueEps = eps.filter((e) => { const k = `${e.season}:${e.episode}`; if (seen.has(k)) return false; seen.add(k); return true; });
+      const uniqueEps = eps.filter((e) => {
+        const k = `${e.season}:${e.episode}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
       const candidate: ParsedTitle = {
-        kind: "show", uuid: r.uuid ?? null, tvdb_id: tvdb, imdb_id: null, name: r.series_name || "Untitled",
-        status: gdprStatus(r, uniqueEps.length), is_favorite: false, rating: null, runtime: null,
-        added_at: toIso(r.followed_at || r.created_at), last_watched_at: lastByShow.get(sid || r.series_name) ?? null,
+        kind: "show",
+        uuid: r.uuid ?? null,
+        tvdb_id: tvdb,
+        imdb_id: null,
+        name: r.series_name || "Untitled",
+        status: gdprStatus(r, uniqueEps.length),
+        is_favorite: false,
+        rating: null,
+        runtime: null,
+        added_at: toIso(r.followed_at || r.created_at),
+        last_watched_at: lastByShow.get(sid || r.series_name) ?? null,
         watched_episodes: uniqueEps,
       };
       const existed = byKey.has(keyOf(candidate));
@@ -241,7 +340,8 @@ export function parseExport(files: FileMap): ParsedImport {
       // JSON export (whose TV Time status is authoritative).
       if (!existed) {
         if (r.is_archived === "true") t.status = "stopped";
-        else if (r.is_for_later === "true" && t.status === "not_started") t.status = "watch_next";
+        else if (r.is_for_later === "true" && t.status === "not_started")
+          t.status = "watch_next";
       }
     }
   }
@@ -253,10 +353,18 @@ export function parseExport(files: FileMap): ParsedImport {
       if (r.entity_type !== "movie" || !r.movie_name) continue;
       if (r.type !== "watch" && r.type !== "towatch") continue;
       add({
-        kind: "movie", uuid: r.uuid ?? null, tvdb_id: null, imdb_id: null, name: r.movie_name,
-        status: r.type === "watch" ? "finished" : "watch_next", is_favorite: false, rating: null,
-        runtime: secToMin(r.runtime), added_at: toIso(r.created_at),
-        last_watched_at: r.type === "watch" ? toIso(r.created_at) : null, watched_episodes: [],
+        kind: "movie",
+        uuid: r.uuid ?? null,
+        tvdb_id: null,
+        imdb_id: null,
+        name: r.movie_name,
+        status: r.type === "watch" ? "finished" : "watch_next",
+        is_favorite: false,
+        rating: null,
+        runtime: secToMin(r.runtime),
+        added_at: toIso(r.created_at),
+        last_watched_at: r.type === "watch" ? toIso(r.created_at) : null,
+        watched_episodes: [],
       });
     }
   }
@@ -291,10 +399,29 @@ export function parseExport(files: FileMap): ParsedImport {
   if (Array.isArray(jsonLists)) {
     for (const l of jsonLists) {
       const items: ParsedList["items"] = [];
-      for (const s of l.shows ?? []) { const { tvdb, imdb } = pickId(s.id); items.push({ kind: "show", tvdb_id: tvdb, imdb_id: imdb, name: s.title ?? "Untitled" }); }
-      for (const m of l.movies ?? []) { const { tvdb, imdb } = pickId(m.id); items.push({ kind: "movie", tvdb_id: tvdb, imdb_id: imdb, name: m.title ?? "Untitled" }); }
+      for (const s of l.shows ?? []) {
+        const { tvdb, imdb } = pickId(s.id);
+        items.push({
+          kind: "show",
+          tvdb_id: tvdb,
+          imdb_id: imdb,
+          name: s.title ?? "Untitled",
+        });
+      }
+      for (const m of l.movies ?? []) {
+        const { tvdb, imdb } = pickId(m.id);
+        items.push({
+          kind: "movie",
+          tvdb_id: tvdb,
+          imdb_id: imdb,
+          name: m.title ?? "Untitled",
+        });
+      }
       const name = (l.name ?? "").trim() || "Untitled list";
-      if (items.length && !seenList.has(name)) { seenList.add(name); lists.push({ name, items }); }
+      if (items.length && !seenList.has(name)) {
+        seenList.add(name);
+        lists.push({ name, items });
+      }
     }
   }
 

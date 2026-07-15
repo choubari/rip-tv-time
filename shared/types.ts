@@ -132,16 +132,33 @@ export interface ParsedTitle {
   total_episodes?: number | null; // full episode count from the export (shows)
   added_at: string | null;
   last_watched_at: string | null;
-  watched_episodes: { season: number; episode: number; watched: boolean; watched_at: string | null; rating: number | null; runtime: number | null }[];
+  watched_episodes: {
+    season: number;
+    episode: number;
+    watched: boolean;
+    watched_at: string | null;
+    rating: number | null;
+    runtime: number | null;
+  }[];
 }
 
 export interface ParsedList {
   name: string;
-  items: { kind: Kind; tvdb_id: number | null; imdb_id: string | null; name: string }[];
+  items: {
+    kind: Kind;
+    tvdb_id: number | null;
+    imdb_id: string | null;
+    name: string;
+  }[];
 }
 
 export interface ParsedImport {
-  profile: { name?: string; bio?: string; cover_url?: string; avatar_url?: string };
+  profile: {
+    name?: string;
+    bio?: string;
+    cover_url?: string;
+    avatar_url?: string;
+  };
   titles: ParsedTitle[];
   lists: ParsedList[];
 }
@@ -153,5 +170,7 @@ export interface ListSummary {
   items: LibraryItem[];
 }
 
-export const TMDB_IMG = (path: string, size: "w185" | "w342" | "w500" | "original" = "w342") =>
-  `https://image.tmdb.org/t/p/${size}${path}`;
+export const TMDB_IMG = (
+  path: string,
+  size: "w185" | "w342" | "w500" | "original" = "w342",
+) => `https://image.tmdb.org/t/p/${size}${path}`;
