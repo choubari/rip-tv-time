@@ -23,6 +23,24 @@ export default function App() {
   // Reset scroll to top whenever the route changes (grids/detail should open at top).
   useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
 
+  // Background poster resolver: keeps fetching missing posters while ANY tab is
+  // open, regardless of which page you're on — so leaving the Import screen no
+  // longer stops it. Gentle pacing to respect TMDB limits.
+  useEffect(() => {
+    if (!user) return;
+    let stop = false;
+    (async () => {
+      while (!stop) {
+        try {
+          const r = await api.resolve(20);
+          if (r.remaining === 0) break;
+        } catch { break; }
+        await new Promise((res) => setTimeout(res, 2500));
+      }
+    })();
+    return () => { stop = true; };
+  }, [user]);
+
   if (user === undefined) {
     return <div className="center-screen"><div className="spinner" /></div>;
   }

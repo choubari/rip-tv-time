@@ -51,9 +51,14 @@ export function ImportPage({ onDone }: { onDone: () => void }) {
       <div className="topbar"><h1>Import</h1></div>
       <div style={{ padding: 16 }}>
         <p className="muted">
-          Drop your <code>tv-time-export.zip</code> and/or <code>gdpr-data.zip</code>. Your
-          watch history, statuses and profile will be imported. You can re-import anytime.
-          For the richest data (per-episode dates, "up to date" status), upload <strong>both</strong>.
+          Upload <strong>both</strong> <code>tv-time-export.zip</code> <strong>and</strong> <code>gdpr-data.zip</code> together.
+          The <code>tv-time-export.zip</code> is required for correct statuses (Watching / Haven't
+          watched for a while / Finished), full episode lists, favorites and lists — the GDPR zip
+          alone can't provide those. You can re-import anytime.
+        </p>
+        <p className="muted" style={{ fontSize: 13 }}>
+          Posters load in the background afterward and keep going as you use the app (no need to
+          wait on this screen) — they finish over the next little while.
         </p>
 
         {hasKey === false && (
