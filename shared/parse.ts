@@ -91,13 +91,16 @@ export function parseExport(files: FileMap): ParsedImport {
     const existing = byKey.get(k);
     if (existing) {
       existing.is_favorite ||= t.is_favorite;
-      // Union watched episodes across sources (JSON + GDPR), filling runtimes.
+      // Union episodes across sources (JSON has the full list; GDPR marks watched).
       const seen = new Map(existing.watched_episodes.map((e) => [`${e.season}:${e.episode}`, e]));
       for (const e of t.watched_episodes) {
         const kk = `${e.season}:${e.episode}`;
         const ex = seen.get(kk);
         if (!ex) { existing.watched_episodes.push(e); seen.set(kk, e); }
-        else if (ex.runtime == null && e.runtime != null) ex.runtime = e.runtime;
+        else {
+          if (e.watched && !ex.watched) { ex.watched = true; ex.watched_at = e.watched_at; }
+          if (ex.runtime == null && e.runtime != null) ex.runtime = e.runtime;
+        }
       }
       if (t.last_watched_at && (!existing.last_watched_at || t.last_watched_at > existing.last_watched_at)) existing.last_watched_at = t.last_watched_at;
       if (existing.runtime == null) existing.runtime = t.runtime;
@@ -119,11 +122,10 @@ export function parseExport(files: FileMap): ParsedImport {
     for (const season of s.seasons ?? []) {
       if (season.number > 0) totalRegular += (season.episodes ?? []).length;
       for (const ep of season.episodes ?? []) {
-        if (ep.is_watched) {
-          const w = toIso(ep.watched_at);
-          eps.push({ season: season.number, episode: ep.number, watched_at: w, rating: ep.rating ?? null, runtime: null });
-          if (w && (!last || w > last)) last = w;
-        }
+        // Store every episode (watched or not) so the detail page shows the full list.
+        const w = ep.is_watched ? toIso(ep.watched_at) : null;
+        eps.push({ season: season.number, episode: ep.number, watched: !!ep.is_watched, watched_at: w, rating: ep.rating ?? null, runtime: null });
+        if (w && (!last || w > last)) last = w;
       }
     }
     return {
@@ -206,7 +208,7 @@ export function parseExport(files: FileMap): ParsedImport {
       if (!sid) continue;
       const list = epsByShow.get(sid) ?? [];
       const w = toIso(e.created_at);
-      list.push({ season: Number(e.season_number) || 1, episode: Number(e.episode_number) || 0, watched_at: w, rating: null, runtime: secToMin(e.runtime) });
+      list.push({ season: Number(e.season_number) || 1, episode: Number(e.episode_number) || 0, watched: true, watched_at: w, rating: null, runtime: secToMin(e.runtime) });
       epsByShow.set(sid, list);
       const prev = lastByShow.get(sid);
       if (w && (!prev || w > prev)) lastByShow.set(sid, w);

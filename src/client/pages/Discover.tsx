@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 
 export function Discover() {
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<(SearchResult & { tracked_ref: number | null })[]>([]);
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState<number | null>(null);
   const nav = useNavigate();
@@ -20,7 +20,8 @@ export function Discover() {
 
   // Tapping a result opens its show/movie page (creating the title record if
   // needed). You then track it / mark episodes from there — just like TV Time.
-  async function open(r: SearchResult) {
+  async function open(r: SearchResult & { tracked_ref?: number | null }) {
+    if (r.tracked_ref) { nav(`/${r.kind}/${r.tracked_ref}`); return; } // already tracked → go to it
     setOpening(r.tmdb_id);
     try {
       const { ref } = await api.ensure(r.kind, r.tmdb_id);
@@ -41,6 +42,7 @@ export function Discover() {
           <button className="poster" key={`${r.kind}-${r.tmdb_id}`} onClick={() => open(r)} style={{ background: "none", border: "none", padding: 0, textAlign: "left" }}>
             <div className="art">
               {r.poster_path ? <img src={TMDB_IMG(r.poster_path)} alt={r.name} loading="lazy" /> : <div className="placeholder">{r.name}</div>}
+              {r.tracked_ref && <span className="badge" style={{ background: "var(--primary)" }}>Tracked</span>}
               {opening === r.tmdb_id && <div className="placeholder" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)" }}><div className="spinner" /></div>}
             </div>
             <div className="title">{r.name}</div>

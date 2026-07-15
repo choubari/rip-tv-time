@@ -72,12 +72,14 @@ CREATE TABLE IF NOT EXISTS library (
 );
 CREATE INDEX IF NOT EXISTS idx_library_user ON library (user_id, kind, status);
 
--- Per-episode watch state for shows.
+-- Per-episode state for shows. We store EVERY episode from the export (watched
+-- and unwatched) so the detail page shows the complete, correct list.
 CREATE TABLE IF NOT EXISTS watched_episodes (
   user_id    TEXT NOT NULL,
   title_id   TEXT NOT NULL,
   season     INTEGER NOT NULL,
   episode    INTEGER NOT NULL,
+  watched    INTEGER NOT NULL DEFAULT 1, -- 1 = watched, 0 = tracked but not watched
   watched_at TEXT,
   rating     REAL,
   runtime    INTEGER,               -- minutes (from GDPR export when available)

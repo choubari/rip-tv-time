@@ -127,7 +127,7 @@ export interface ParsedTitle {
   total_episodes?: number | null; // full episode count from the export (shows)
   added_at: string | null;
   last_watched_at: string | null;
-  watched_episodes: { season: number; episode: number; watched_at: string | null; rating: number | null; runtime: number | null }[];
+  watched_episodes: { season: number; episode: number; watched: boolean; watched_at: string | null; rating: number | null; runtime: number | null }[];
 }
 
 export interface ParsedList {

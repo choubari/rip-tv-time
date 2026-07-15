@@ -73,11 +73,11 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
         ).bind(userId, id, t.kind, t.status, t.is_favorite ? 1 : 0, t.rating, t.added_at, t.last_watched_at),
       );
       for (const e of t.watched_episodes) {
-        episodes++;
+        if (e.watched) episodes++;
         stmts.push(
           env.DB.prepare(
-            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched_at, rating, runtime) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
-          ).bind(userId, id, e.season, e.episode, e.watched_at, e.rating, e.runtime),
+            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, watched_at, rating, runtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+          ).bind(userId, id, e.season, e.episode, e.watched ? 1 : 0, e.watched_at, e.rating, e.runtime),
         );
       }
     }
@@ -117,7 +117,7 @@ export async function refreshNewEpisodes(env: Env, limit = 60): Promise<{ checke
   if (!key) return { checked: 0, updated: 0 };
   const { results } = await env.DB.prepare(
     `SELECT l.rowid AS lrid, l.user_id, l.title_id, t.tmdb_id,
-            (SELECT MAX(w.season * 1000 + w.episode) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0) AS max_watched
+            (SELECT MAX(w.season * 1000 + w.episode) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0 AND w.watched = 1) AS max_watched
      FROM library l JOIN titles t ON t.id = l.title_id
      WHERE l.kind = 'show' AND l.status = 'finished' AND t.tmdb_id IS NOT NULL AND t.tmdb_id > 0
      ORDER BY l.last_watched_at DESC LIMIT ?`,
@@ -163,7 +163,7 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
     // Resolve anything still without a poster. `watched` guards against wrong
     // external-id matches (a show that maps to a smaller TMDB title).
     `SELECT t.id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime,
-            (SELECT COUNT(DISTINCT w.season || ':' || w.episode) FROM watched_episodes w WHERE w.title_id = t.id AND w.season > 0) AS watched
+            (SELECT COUNT(DISTINCT w.season || ':' || w.episode) FROM watched_episodes w WHERE w.title_id = t.id AND w.season > 0 AND w.watched = 1) AS watched
      FROM titles t WHERE t.resolve_failed = 0 AND t.poster_path IS NULL LIMIT ?`,
   ).bind(limit).all<{ id: string; kind: "show" | "movie"; tvdb_id: number | null; imdb_id: string | null; name: string; runtime: number | null; watched: number }>();
 
@@ -200,7 +200,7 @@ async function dedupeByTmdb(env: Env): Promise<void> {
     `SELECT t.kind, t.tmdb_id,
             (SELECT t2.id FROM titles t2
              WHERE t2.kind = t.kind AND t2.tmdb_id = t.tmdb_id
-             ORDER BY (SELECT COUNT(*) FROM watched_episodes w WHERE w.title_id = t2.id) DESC,
+             ORDER BY (SELECT COUNT(*) FROM watched_episodes w WHERE w.title_id = t2.id AND w.watched = 1) DESC,
                       (SELECT COUNT(*) FROM library l WHERE l.title_id = t2.id) DESC,
                       t2.id ASC
              LIMIT 1) AS keep
@@ -254,7 +254,7 @@ export async function getLibrary(env: Env, userId: string, kind?: string): Promi
   const where = kind ? "AND l.kind = ?" : "";
   const stmt = env.DB.prepare(
     `SELECT t.*, t.rowid AS ref, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at,
-            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0) AS episodes_watched
+            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0 AND w.watched = 1) AS episodes_watched
      FROM library l JOIN titles t ON t.id = l.title_id
      WHERE l.user_id = ? ${where}
      ORDER BY l.last_watched_at DESC NULLS LAST, l.added_at DESC NULLS LAST, t.name COLLATE NOCASE ASC`,
@@ -294,7 +294,7 @@ export async function getLists(env: Env, userId: string): Promise<import("../../
   for (const l of lists) {
     const { results } = await env.DB.prepare(
       `SELECT t.*, t.rowid AS ref, li.ordering, lib.status, lib.is_favorite, lib.rating, lib.added_at, lib.last_watched_at,
-              (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = ? AND w.title_id = t.id AND w.season > 0) AS episodes_watched
+              (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = ? AND w.title_id = t.id AND w.season > 0 AND w.watched = 1) AS episodes_watched
        FROM list_items li JOIN titles t ON t.id = li.title_id
        LEFT JOIN library lib ON lib.title_id = t.id AND lib.user_id = ?
        WHERE li.list_id = ?
@@ -314,22 +314,22 @@ export async function getTitle(env: Env, userId: string, titleId: string, byRef 
   if (!r) return null;
   titleId = r.id; // normalize to the string id for the episodes query below
   const { results: episodes } = await env.DB.prepare(
-    "SELECT season, episode, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
-  ).bind(userId, titleId).all<{ season: number }>();
-  const regularWatched = episodes.filter((e) => e.season > 0).length;
+    "SELECT season, episode, watched, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
+  ).bind(userId, titleId).all<{ season: number; watched: number }>();
+  const regularWatched = episodes.filter((e) => e.season > 0 && e.watched).length;
   const item = rowToItem({ ...r, episodes_watched: regularWatched });
-  return { ...item, tracked: r.status != null, episodes };
+  return { ...item, tracked: r.status != null, episodes: episodes.map((e) => ({ ...e, watched: !!e.watched })) };
 }
 
 export async function getStats(env: Env, userId: string): Promise<Stats> {
   const q = async (sql: string) => (await env.DB.prepare(sql).bind(userId).first<any>()) ?? {};
   const shows = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'show'");
   const movies = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'movie'");
-  const eps = await q("SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ? AND season > 0");
+  const eps = await q("SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ? AND season > 0 AND watched = 1");
   const moviesWatched = await q("SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind='movie' AND status='finished'");
   // Watch time: prefer the real per-episode runtime from the export, then the
   // show's average runtime, then a 40m default. Movies use their own runtime.
-  const tv = await q("SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ? AND w.season > 0");
+  const tv = await q("SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ? AND w.season > 0 AND w.watched = 1");
   const mv = await q("SELECT COALESCE(SUM(COALESCE(t.runtime,100)),0) m FROM library l JOIN titles t ON t.id=l.title_id WHERE l.user_id = ? AND l.kind='movie' AND l.status='finished'");
   return { shows: shows.c, movies: movies.c, episodes_watched: eps.c, movies_watched: moviesWatched.c, tv_minutes: tv.m, movie_minutes: mv.m };
 }
@@ -362,6 +362,10 @@ async function ensureLibraryRow(env: Env, userId: string, titleId: string) {
 
 /** Insert a title's TMDB metadata (without adding it to the library). Returns the id. */
 export async function ensureTitle(env: Env, kind: "show" | "movie", tmdbId: number): Promise<string> {
+  // If a title with this tmdb_id already exists (e.g. a tracked show resolved
+  // from its TVDB id), reuse it instead of creating a duplicate.
+  const existing = await env.DB.prepare("SELECT id FROM titles WHERE kind = ? AND tmdb_id = ?").bind(kind, tmdbId).first<{ id: string }>();
+  if (existing) return existing.id;
   const id = `tmdb:${kind}:${tmdbId}`;
   const exists = await env.DB.prepare("SELECT 1 FROM titles WHERE id = ?").bind(id).first();
   if (exists) return id;
@@ -388,13 +392,12 @@ export async function updateLibrary(env: Env, userId: string, titleId: string, p
 }
 
 export async function toggleEpisode(env: Env, userId: string, titleId: string, season: number, episode: number, watched: boolean) {
-  if (watched) {
-    await ensureLibraryRow(env, userId, titleId);
-    await env.DB.prepare(
-      "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched_at) VALUES (?, ?, ?, ?, datetime('now')) ON CONFLICT DO NOTHING",
-    ).bind(userId, titleId, season, episode).run();
-    await env.DB.prepare("UPDATE library SET last_watched_at = datetime('now') WHERE user_id = ? AND title_id = ?").bind(userId, titleId).run();
-  } else {
-    await env.DB.prepare("DELETE FROM watched_episodes WHERE user_id = ? AND title_id = ? AND season = ? AND episode = ?").bind(userId, titleId, season, episode).run();
-  }
+  await ensureLibraryRow(env, userId, titleId);
+  // Set the watched flag (row may already exist as an unwatched episode).
+  await env.DB.prepare(
+    `INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, watched_at)
+     VALUES (?, ?, ?, ?, ?, ${watched ? "datetime('now')" : "NULL"})
+     ON CONFLICT(user_id, title_id, season, episode) DO UPDATE SET watched = excluded.watched, watched_at = excluded.watched_at`,
+  ).bind(userId, titleId, season, episode, watched ? 1 : 0).run();
+  if (watched) await env.DB.prepare("UPDATE library SET last_watched_at = datetime('now') WHERE user_id = ? AND title_id = ?").bind(userId, titleId).run();
 }

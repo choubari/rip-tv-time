@@ -178,7 +178,9 @@ img { display: block; }
 .modal-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 15px; }
 
 /* Sticky "Track this show" bar above the bottom nav on the detail page */
-.track-footer { position: fixed; left: 0; right: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); z-index: 40; padding: 12px 16px; background: linear-gradient(transparent, var(--bg) 30%); max-width: var(--max-w); margin: 0 auto; }
+.track-footer { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); z-index: 40; width: 100%; padding: 12px 16px; background: linear-gradient(transparent, var(--bg) 30%); max-width: var(--max-w); }
+/* Extra space so the sticky track bar never covers the last episode */
+.has-track-footer { padding-bottom: 84px; }
 
 .empty { text-align: center; color: var(--text-dim); padding: 60px 24px; }
 .spinner { width: 22px; height: 22px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }

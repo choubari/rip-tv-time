@@ -43,7 +43,7 @@ export const api = {
   stats: () => req<Stats>("/api/stats"),
   title: (ref: string | number) => req<TitleDetail>(`/api/t/${ref}`),
   seasons: (ref: string | number) => req<{ seasons: SeasonData[] }>(`/api/t/${ref}/seasons`),
-  search: (q: string) => req<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  search: (q: string) => req<(SearchResult & { tracked_ref: number | null })[]>(`/api/search?q=${encodeURIComponent(q)}`),
 
   lists: () => req<ListSummary[]>("/api/lists"),
   unmatched: () => req<{ ref: number; name: string; kind: string }[]>("/api/unmatched"),

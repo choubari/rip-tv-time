@@ -134,7 +134,14 @@ app.get("/api/t/:ref/seasons", requireAuth, async (c) => {
 app.get("/api/search", requireAuth, async (c) => {
   const q = c.req.query("q");
   if (!q) return c.json([]);
-  return c.json(await search(await tmdbKey(c.env), q));
+  const results = await search(await tmdbKey(c.env), q);
+  // Annotate results already in the user's library with their ref (so the UI can
+  // link straight to the tracked title instead of creating a duplicate).
+  const { results: mine } = await c.env.DB.prepare(
+    `SELECT t.kind, t.tmdb_id, t.rowid AS ref FROM library l JOIN titles t ON t.id = l.title_id WHERE l.user_id = ? AND t.tmdb_id IS NOT NULL`,
+  ).bind(c.get("userId")).all<{ kind: string; tmdb_id: number; ref: number }>();
+  const byId = new Map(mine.map((m) => [`${m.kind}:${m.tmdb_id}`, m.ref]));
+  return c.json(results.map((r) => ({ ...r, tracked_ref: byId.get(`${r.kind}:${r.tmdb_id}`) ?? null })));
 });
 
 // TMDB key management (entered in the UI so no file editing is needed).

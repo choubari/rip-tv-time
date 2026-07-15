@@ -181,9 +181,12 @@ function RelinkRow({ item, onDone }: { item: { ref: number; name: string; kind: 
 
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
-      <a href={`https://www.themoviedb.org/search?query=${encodeURIComponent(item.name)}`} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 14 }}>
-        {item.name} <span className="muted" style={{ fontSize: 12 }}>· {item.kind === "show" ? "TV" : "Movie"} ↗</span>
-      </a>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Link to={`/${item.kind}/${item.ref}`} style={{ fontSize: 14 }}>{item.name}</Link>
+        <a href={`https://www.themoviedb.org/search?query=${encodeURIComponent(item.name)}`} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+          find on TMDB ↗
+        </a>
+      </div>
       <input className="input" style={{ width: 90, padding: "6px 8px", borderColor: err ? "var(--primary)" : undefined }} placeholder="TMDB id" value={tmdbId} onChange={(e) => setTmdbId(e.target.value)} />
       <button className="chip" style={{ background: "var(--primary)", color: "#fff" }} disabled={busy || !tmdbId.trim()} onClick={save}>{busy ? "…" : "Save"}</button>
     </div>

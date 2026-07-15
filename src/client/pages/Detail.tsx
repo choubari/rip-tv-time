@@ -59,9 +59,27 @@ export function Detail() {
     // Export episodes first (authoritative), then TMDB enrichment.
     for (const e of t.episodes) put(e.season, { episode: e.episode, name: "", air_date: null, runtime: null, still: null }, false);
     for (const s of seasons ?? []) for (const e of s.episodes) put(s.season, e, true);
-    return [...bySeason.entries()]
+    const out = [...bySeason.entries()]
       .map(([season, m]) => ({ season, name: seasons?.find((s) => s.season === season)?.name ?? `Season ${season}`, episodes: [...m.values()].sort((a, b) => a.episode - b.episode) }))
       .sort((a, b) => a.season - b.season);
+
+    // Absolute-order fallback: when the export and TMDB disagree on season layout
+    // (common for anime), fill missing stills/names/dates by matching episodes in
+    // flat order. Solo Leveling S2 gets TMDB's stills even though TMDB lists them
+    // under one flat season.
+    const tmdbFlat = (seasons ?? []).filter((s) => s.season > 0).flatMap((s) => s.episodes);
+    if (tmdbFlat.length) {
+      const ownFlat = out.flatMap((s) => s.episodes);
+      ownFlat.forEach((e, i) => {
+        const src = tmdbFlat[i];
+        if (!src) return;
+        if (!e.name && src.name) e.name = src.name;
+        if (!e.air_date && src.air_date) e.air_date = src.air_date;
+        if (e.still == null && src.still) e.still = src.still;
+        if (e.runtime == null && src.runtime) e.runtime = src.runtime;
+      });
+    }
+    return out;
   }, [seasons, t]);
 
   if (!t) return <Loading />;
@@ -179,6 +197,7 @@ export function Detail() {
         />
       )}
 
+      {!t.tracked && <div style={{ height: 84 }} />}
       {!t.tracked && (
         <div className="track-footer">
           <button className="btn" style={{ width: "100%" }} onClick={() => { setT({ ...t, tracked: true }); patch({ status: isShow ? "watching" : "watch_next" }); }}>
