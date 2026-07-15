@@ -19,13 +19,12 @@
     {
       "binding": "DB",
       "database_name": "rip_tv_time",
-      // Replace with your real database_id after `wrangler d1 create rip_tv_time`.
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "67978813-4933-4953-9218-386697e4d7d4"
     }
   ],
   "vars": {
-    // App base URL used inside magic-link emails. Override per-environment.
-    "APP_URL": "http://localhost:5173"
+    // App base URL used inside magic-link emails.
+    "APP_URL": "https://rip-tv-time.choub.workers.dev"
     // Secrets (set with `wrangler secret put`): TMDB_API_KEY, RESEND_API_KEY, MAIL_FROM
   }
 }
