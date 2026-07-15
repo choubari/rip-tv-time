@@ -12,22 +12,31 @@ export default defineConfig({
     cloudflare(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
-      // The caching service worker repeatedly served stale/broken responses and
-      // broke SPA reloads. Cloudflare already serves the SPA fallback server-side,
-      // so we ship a self-destroying SW: it unregisters any existing worker and
-      // clears its caches, then the app runs reliably straight from the server.
-      selfDestroying: true,
+      includeAssets: ["favicon.svg", "icon-192.png", "icon-512.png"],
+      workbox: {
+        // SPA fallback (the piece that was missing and broke reloads): serve
+        // index.html for client routes, never intercept the API, and always
+        // drop stale precaches so we don't get into cache-mismatch loops.
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/api\//],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+      },
       manifest: {
         name: "rip tv time",
         short_name: "rip tv time",
         description: "Browse your exported TV Time watch history.",
-        theme_color: "#21d07a",
+        theme_color: "#0f0f0f",
         background_color: "#0f0f0f",
         display: "standalone",
+        start_url: "/",
+        scope: "/",
+        id: "/",
         icons: [
-          { src: "icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
     }),

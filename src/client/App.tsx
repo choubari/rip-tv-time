@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import type { UserProfile } from "../../shared/types";
 import { api, AuthError } from "./lib/api";
 import { BottomNav } from "./components/BottomNav";
+import { InstallPrompt } from "./components/InstallPrompt";
 import { Login } from "./pages/Login";
 import { ImportPage } from "./pages/ImportPage";
 import { Shows, Movies } from "./pages/Library";
@@ -70,6 +71,7 @@ export default function App() {
         <Route path="/all/:kind" element={<Collection mode="all" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <InstallPrompt />
       <BottomNav />
     </div>
   );
