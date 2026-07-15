@@ -163,9 +163,7 @@ export function Detail() {
               {/* Watching / paused / finished / not-started are derived from your
                   progress automatically. The user only sets these overrides —
                   with explicit verbs (Stop / Resume), not toggles. */}
-              {t.status === "stopped" || t.status === "watch_next" ? (
-                <button className="chip active" onClick={() => patch({ status: "watching" })}>▶ Resume watching</button>
-              ) : (
+              {t.status !== "stopped" && t.status !== "watch_next" && (
                 <>
                   <button className="chip" onClick={() => patch({ status: "watch_next" })}>+ Watch later</button>
                   <button className="chip" onClick={() => patch({ status: "stopped" })}>■ Stop watching</button>
@@ -220,14 +218,20 @@ export function Detail() {
         />
       )}
 
-      {!t.tracked && <div style={{ height: 84 }} />}
-      {!t.tracked && (
+      {(!t.tracked || t.status === "stopped" || t.status === "watch_next") && <div style={{ height: 84 }} />}
+      {!t.tracked ? (
         <div className="track-footer">
           <button className="btn" style={{ width: "100%" }} onClick={() => { const s: Status = isShow ? "watching" : "watch_next"; setT({ ...t, tracked: true, status: s }); api.update(id, { status: s }); }}>
             + Track this {isShow ? "show" : "movie"}
           </button>
         </div>
-      )}
+      ) : (t.status === "stopped" || t.status === "watch_next") ? (
+        <div className="track-footer">
+          <button className="btn" style={{ width: "100%" }} onClick={() => patch({ status: "watching" })}>
+            ▶ Resume watching
+          </button>
+        </div>
+      ) : null}
     </>
   );
 }
