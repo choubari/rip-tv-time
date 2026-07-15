@@ -139,13 +139,19 @@ export async function resolveMeta(
   ids: { tvdb_id: number | null; imdb_id: string | null; name: string; watched?: number },
 ): Promise<TmdbMeta | null> {
   const findKind = kind === "show" ? "tv_results" : "movie_results";
-  // A candidate show is rejected only if TMDB *knows* its episode count and it is
-  // fewer than the user has watched (wrong, smaller show). If TMDB's count is
-  // unknown (null), don't reject on that basis — many valid shows lack the field.
-  const enoughEpisodes = (m: TmdbMeta) =>
-    kind === "movie" || !ids.watched || m.total_episodes == null || m.total_episodes >= ids.watched;
-  const acceptable = (m: TmdbMeta, trustName: boolean) =>
-    (trustName || namesMatch(m.name, ids.name)) && enoughEpisodes(m);
+  const w = ids.watched ?? 0;
+  // Name matches EITHER the localized or the original title (handles translated
+  // shows, e.g. export "Black Money Love" vs TMDB "Kara Para Aşk").
+  const nameOk = (m: TmdbMeta) => namesMatch(m.name, ids.name) || (!!m.original_name && namesMatch(m.original_name, ids.name));
+  // "Wildly wrong" episode count → reject (Ice Cream Girls 3 for 23 watched, or
+  // Vandaag Inside 898 for 39 watched). Unknown count never rejects.
+  const notWildlyOff = (m: TmdbMeta) => kind === "movie" || !w || m.total_episodes == null || (m.total_episodes >= w * 0.8 && m.total_episodes <= Math.max(w * 3, w + 6));
+  // A close episode count is itself strong evidence of the right show even when
+  // the name is translated (Kara Para Aşk 54 ≈ 55 watched).
+  const countClose = (m: TmdbMeta) => kind === "show" && w > 0 && m.total_episodes != null && m.total_episodes >= w * 0.8 && m.total_episodes <= Math.max(w * 1.5, w + 3);
+  // imdb id is authoritative; tvdb id is authoritative only when name OR count agrees.
+  const acceptable = (m: TmdbMeta, trustExternal: boolean) =>
+    trustExternal ? notWildlyOff(m) : (nameOk(m) && notWildlyOff(m)) || countClose(m);
 
   for (const ext of [
     ids.imdb_id ? { external_source: "imdb_id", id: ids.imdb_id, trust: true } : null, // imdb is reliable
@@ -162,9 +168,9 @@ export async function resolveMeta(
   // Fallback: search by name, take the best name+episode match.
   const search = await tmdb<any>(key, `/search/${kind === "show" ? "tv" : "movie"}`, { query: ids.name });
   for (const r of (search?.results ?? []).slice(0, 5)) {
-    if (!namesMatch(r.name ?? r.title ?? "", ids.name)) continue;
+    if (!namesMatch(r.name ?? r.title ?? "", ids.name) && !namesMatch(r.original_name ?? r.original_title ?? "", ids.name)) continue;
     const detail = await fetchDetail(key, kind, r.id);
-    if (detail && acceptable(detail, false)) return detail;
+    if (detail && (nameOk(detail) && notWildlyOff(detail))) return detail;
   }
 
   // Nothing trustworthy: keep the export's own name, no poster/art.
