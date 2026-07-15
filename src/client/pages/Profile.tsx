@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { LibraryItem, ListSummary, Stats, UserProfile } from "../../../shared/types";
+import { TMDB_IMG } from "../../../shared/types";
 import { api } from "../lib/api";
 import { PosterRow } from "../components/Poster";
 import { StarIcon } from "../components/icons";
@@ -11,6 +12,10 @@ function hours(mins: number) {
   const d = Math.floor(h / 24);
   return `${d}d ${h % 24}h`;
 }
+
+// Order by tracking time: most recently added first (falls back to last watched).
+const byTracked = (a: LibraryItem, b: LibraryItem) =>
+  (b.added_at ?? b.last_watched_at ?? "").localeCompare(a.added_at ?? a.last_watched_at ?? "");
 
 export function Profile({ user, onChange }: { user: UserProfile; onChange: () => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -26,31 +31,27 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
 
   async function logout() { await api.logout(); onChange(); nav("/"); }
 
-  const favorites = lib.filter((i) => i.is_favorite);
-  const finishedShows = lib.filter((i) => i.kind === "show" && i.status === "finished");
-  const watchedMovies = lib.filter((i) => i.kind === "movie" && i.status === "finished");
+  const shows = lib.filter((i) => i.kind === "show").sort(byTracked);
+  const movies = lib.filter((i) => i.kind === "movie").sort(byTracked);
+  const favShows = shows.filter((i) => i.is_favorite);
+  const favMovies = movies.filter((i) => i.is_favorite);
 
   return (
     <>
-      {/* Cover header */}
+      {/* Cover header with avatar */}
       <div style={{ position: "relative", aspectRatio: "16/8", overflow: "hidden", background: "var(--bg-elev-2)" }}>
         {user.cover_url && <img src={user.cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }} />}
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(transparent 40%, var(--bg))" }} />
-        <div style={{ position: "absolute", bottom: 12, left: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 24 }}>{user.name || user.email.split("@")[0]}</h1>
-          {user.bio && <p className="muted" style={{ margin: "2px 0 0", fontSize: 13 }}>{user.bio}</p>}
+        <div style={{ position: "absolute", bottom: 12, left: 16, display: "flex", alignItems: "flex-end", gap: 12 }}>
+          <div className="avatar">
+            {user.avatar_url ? <img src={user.avatar_url} alt="" /> : <span>{(user.name || user.email)[0]?.toUpperCase()}</span>}
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 22 }}>{user.name || user.email.split("@")[0]}</h1>
+            {user.bio && <p className="muted" style={{ margin: "2px 0 0", fontSize: 13 }}>{user.bio}</p>}
+          </div>
         </div>
       </div>
-
-      {favorites.length > 0 && <Showcase title="Favorites" to="/" items={favorites} heart />}
-      {finishedShows.length > 0 && <Showcase title="Finished shows" to="/" items={finishedShows} />}
-      {watchedMovies.length > 0 && <Showcase title="Watched movies" to="/movies" items={watchedMovies} />}
-      {lists.map((l) => (
-        <section key={l.id}>
-          <div className="section-head static"><h2>{l.name}</h2><span className="count">{l.count}</span></div>
-          <PosterRow items={l.items} />
-        </section>
-      ))}
 
       <div className="section-head static"><h2>Stats</h2></div>
       <div className="stat-grid">
@@ -61,6 +62,18 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
         <Stat text={stats ? hours(stats.tv_minutes) : undefined} label="Time in TV shows" accent />
         <Stat text={stats ? hours(stats.movie_minutes) : undefined} label="Time in movies" />
       </div>
+
+      {lists.length > 0 && (
+        <section>
+          <div className="section-head static"><h2>Lists</h2><span className="count">{lists.length}</span></div>
+          <div className="row">{lists.map((l) => <ListCard key={l.id} list={l} />)}</div>
+        </section>
+      )}
+
+      {shows.length > 0 && <Showcase title="Shows" to="/" items={shows} />}
+      {favShows.length > 0 && <Showcase title="Favorite shows" to="/" items={favShows} heart />}
+      {movies.length > 0 && <Showcase title="Movies" to="/movies" items={movies} />}
+      {favMovies.length > 0 && <Showcase title="Favorite movies" to="/movies" items={favMovies} heart />}
 
       <TmdbKeySettings />
 
@@ -83,6 +96,22 @@ function Showcase({ title, to, items, heart }: { title: string; to: string; item
       </Link>
       <PosterRow items={items.slice(0, 20)} />
     </section>
+  );
+}
+
+// A list rendered as a wide collage banner (like TV Time), with the name overlaid.
+function ListCard({ list }: { list: ListSummary }) {
+  const posters = list.items.filter((i) => i.poster_path).slice(0, 4);
+  return (
+    <div className="list-card">
+      <div className="list-collage">
+        {posters.length
+          ? posters.map((i) => <img key={i.id} src={TMDB_IMG(i.poster_path!, "w342")} alt="" />)
+          : <div className="placeholder">{list.name}</div>}
+      </div>
+      <div className="list-overlay" />
+      <div className="list-name">{list.name} <span className="muted">· {list.count}</span></div>
+    </div>
   );
 }
 

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   name       TEXT,
   bio        TEXT,
   cover_url  TEXT,
+  avatar_url TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

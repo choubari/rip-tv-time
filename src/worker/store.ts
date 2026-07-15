@@ -27,9 +27,10 @@ const chunk = <T>(arr: T[], n: number): T[][] => {
 
 /** Wipe a user's library and reseed it from a parsed export. */
 export async function seedImport(env: Env, userId: string, data: ParsedImport): Promise<{ titles: number; episodes: number }> {
-  if (data.profile.name || data.profile.bio || data.profile.cover_url) {
-    await env.DB.prepare("UPDATE users SET name = COALESCE(?, name), bio = COALESCE(?, bio), cover_url = COALESCE(?, cover_url) WHERE id = ?")
-      .bind(data.profile.name ?? null, data.profile.bio ?? null, data.profile.cover_url ?? null, userId)
+  const p = data.profile;
+  if (p.name || p.bio || p.cover_url || p.avatar_url) {
+    await env.DB.prepare("UPDATE users SET name = COALESCE(?, name), bio = COALESCE(?, bio), cover_url = COALESCE(?, cover_url), avatar_url = COALESCE(?, avatar_url) WHERE id = ?")
+      .bind(p.name ?? null, p.bio ?? null, p.cover_url ?? null, p.avatar_url ?? null, userId)
       .run();
   }
 
@@ -52,8 +53,10 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
           // keeping the existing poster until the refresh lands.
           `INSERT INTO titles (id, kind, tvdb_id, imdb_id, name, runtime) VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
              runtime = COALESCE(titles.runtime, excluded.runtime),
-             total_episodes = CASE WHEN titles.kind = 'show' THEN NULL ELSE titles.total_episodes END,
+             total_episodes = NULL,
+             poster_path = NULL, backdrop_path = NULL,
              resolve_failed = 0`,
         ).bind(id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime),
       );
@@ -111,25 +114,60 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
   const key = await tmdbKey(env);
   const { results } = await env.DB.prepare(
     // Needs resolution if it has no poster, or it's a show whose episode total was
-    // cleared for recompute on the last import.
-    "SELECT id, kind, tvdb_id, imdb_id, name, runtime FROM titles WHERE resolve_failed = 0 AND (poster_path IS NULL OR (kind = 'show' AND total_episodes IS NULL)) LIMIT ?",
-  ).bind(limit).all<{ id: string; kind: "show" | "movie"; tvdb_id: number | null; imdb_id: string | null; name: string; runtime: number | null }>();
+    // cleared for recompute on the last import. `watched` guards against wrong
+    // external-id matches (a show that maps to a smaller TMDB title).
+    `SELECT t.id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime,
+            (SELECT COUNT(DISTINCT w.season || ':' || w.episode) FROM watched_episodes w WHERE w.title_id = t.id AND w.season > 0) AS watched
+     FROM titles t WHERE t.resolve_failed = 0 AND (t.poster_path IS NULL OR (t.kind = 'show' AND t.total_episodes IS NULL)) LIMIT ?`,
+  ).bind(limit).all<{ id: string; kind: "show" | "movie"; tvdb_id: number | null; imdb_id: string | null; name: string; runtime: number | null; watched: number }>();
 
   let resolved = 0;
   for (const row of results) {
     const meta = await resolveMeta(key, row.kind, row);
-    if (meta) {
+    if (meta && meta.tmdb_id > 0) {
       await env.DB.prepare(
         // Keep the real runtime we already have (from GDPR) unless TMDB gives one.
         `UPDATE titles SET tmdb_id=?, name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(?, runtime), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
       ).bind(meta.tmdb_id, meta.name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
       resolved++;
     } else {
+      // No trustworthy TMDB match — keep the export name, don't retry, no wrong art.
       await env.DB.prepare("UPDATE titles SET resolve_failed = 1 WHERE id = ?").bind(row.id).run();
     }
   }
   const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE resolve_failed = 0 AND (poster_path IS NULL OR (kind = 'show' AND total_episodes IS NULL))").first<{ c: number }>();
+  if (rem?.c === 0) await dedupeByTmdb(env);
   return { resolved, remaining: rem?.c ?? 0 };
+}
+
+/**
+ * Some exports list the same title under two different TVDB ids (e.g. a movie
+ * duplicated in movies.json). Once resolved they share one tmdb_id — collapse the
+ * duplicates into a single canonical title so it appears once per user.
+ */
+async function dedupeByTmdb(env: Env): Promise<void> {
+  const { results: dupes } = await env.DB.prepare(
+    `SELECT kind, tmdb_id, MIN(id) AS keep FROM titles
+     WHERE tmdb_id IS NOT NULL AND tmdb_id > 0
+     GROUP BY kind, tmdb_id HAVING COUNT(*) > 1`,
+  ).all<{ kind: string; tmdb_id: number; keep: string }>();
+  for (const d of dupes) {
+    const { results: others } = await env.DB.prepare(
+      "SELECT id FROM titles WHERE kind = ? AND tmdb_id = ? AND id <> ?",
+    ).bind(d.kind, d.tmdb_id, d.keep).all<{ id: string }>();
+    for (const o of others) {
+      await env.DB.batch([
+        // Move any library/episode/list rows to the canonical id, then drop the dup.
+        env.DB.prepare("UPDATE OR IGNORE library SET title_id = ? WHERE title_id = ?").bind(d.keep, o.id),
+        env.DB.prepare("UPDATE OR IGNORE watched_episodes SET title_id = ? WHERE title_id = ?").bind(d.keep, o.id),
+        env.DB.prepare("UPDATE OR IGNORE list_items SET title_id = ? WHERE title_id = ?").bind(d.keep, o.id),
+        env.DB.prepare("DELETE FROM library WHERE title_id = ?").bind(o.id),
+        env.DB.prepare("DELETE FROM watched_episodes WHERE title_id = ?").bind(o.id),
+        env.DB.prepare("DELETE FROM list_items WHERE title_id = ?").bind(o.id),
+        env.DB.prepare("DELETE FROM titles WHERE id = ?").bind(o.id),
+      ]);
+    }
+  }
 }
 
 function rowToMeta(r: any): TitleMeta {

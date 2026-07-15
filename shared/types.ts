@@ -86,6 +86,7 @@ export interface UserProfile {
   name: string | null;
   bio: string | null;
   cover_url: string | null;
+  avatar_url: string | null;
 }
 
 export interface Stats {
@@ -119,7 +120,7 @@ export interface ParsedList {
 }
 
 export interface ParsedImport {
-  profile: { name?: string; bio?: string; cover_url?: string };
+  profile: { name?: string; bio?: string; cover_url?: string; avatar_url?: string };
   titles: ParsedTitle[];
   lists: ParsedList[];
 }

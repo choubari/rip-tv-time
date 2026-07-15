@@ -9,9 +9,11 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "db:migrate:local": "wrangler d1 execute rip_tv_time --local --file=./schema.sql",
+    "db:migrate:local": "wrangler d1 execute rip_tv_time --local --file=./schema.sql && npm run db:upgrade:local",
+    "db:upgrade:local": "wrangler d1 execute rip_tv_time --local --command \"ALTER TABLE users ADD COLUMN avatar_url TEXT\" || true",
+    "db:upgrade:remote": "wrangler d1 execute rip_tv_time --remote --command \"ALTER TABLE users ADD COLUMN avatar_url TEXT\" || true",
     "db:reset:local": "wrangler d1 execute rip_tv_time --local --command \"DROP TABLE IF EXISTS watched_episodes; DROP TABLE IF EXISTS library; DROP TABLE IF EXISTS titles; DROP TABLE IF EXISTS sessions; DROP TABLE IF EXISTS auth_tokens; DROP TABLE IF EXISTS users; DROP TABLE IF EXISTS app_settings;\" && npm run db:migrate:local",
-    "db:migrate:remote": "wrangler d1 execute rip_tv_time --remote --file=./schema.sql",
+    "db:migrate:remote": "wrangler d1 execute rip_tv_time --remote --file=./schema.sql && npm run db:upgrade:remote",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {

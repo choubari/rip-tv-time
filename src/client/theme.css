@@ -123,6 +123,18 @@ img { display: block; }
 .ep-check { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); background: transparent; display: flex; align-items: center; justify-content: center; color: transparent; flex: none; }
 .ep-check.on { background: var(--primary); border-color: var(--primary); color: #fff; }
 
+/* Profile avatar */
+.avatar { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; background: var(--primary); border: 2px solid var(--bg); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 22px; color: #fff; flex: none; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* List collage cards (Profile → Lists) */
+.list-card { position: relative; flex: 0 0 300px; height: 150px; border-radius: var(--radius); overflow: hidden; background: var(--bg-elev-2); }
+.list-collage { display: flex; height: 100%; }
+.list-collage img { width: 25%; height: 100%; object-fit: cover; }
+.list-collage .placeholder { width: 100%; display: flex; align-items: center; justify-content: center; }
+.list-overlay { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.55), transparent 55%); }
+.list-name { position: absolute; bottom: 12px; left: 14px; font-weight: 800; font-size: 17px; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+
 /* Horizontal poster rows (Profile showcase) */
 .row { display: flex; gap: 12px; overflow-x: auto; padding: 8px 16px 4px; scrollbar-width: none; }
 .row::-webkit-scrollbar { display: none; }

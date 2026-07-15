@@ -35,7 +35,7 @@ app.post("/api/auth/logout", async (c) => {
 
 // -------------------------------------------------------- authed routes
 app.get("/api/me", requireAuth, async (c) => {
-  const u = await c.env.DB.prepare("SELECT id, email, name, bio, cover_url FROM users WHERE id = ?").bind(c.get("userId")).first();
+  const u = await c.env.DB.prepare("SELECT id, email, name, bio, cover_url, avatar_url FROM users WHERE id = ?").bind(c.get("userId")).first();
   return c.json(u);
 });
 

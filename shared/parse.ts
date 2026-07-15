@@ -89,7 +89,15 @@ export function parseExport(files: FileMap): ParsedImport {
     const existing = byKey.get(k);
     if (existing) {
       existing.is_favorite ||= t.is_favorite;
-      if (t.watched_episodes.length >= existing.watched_episodes.length && t.watched_episodes.length) existing.watched_episodes = t.watched_episodes;
+      // Union watched episodes across sources (JSON + GDPR), filling runtimes.
+      const seen = new Map(existing.watched_episodes.map((e) => [`${e.season}:${e.episode}`, e]));
+      for (const e of t.watched_episodes) {
+        const kk = `${e.season}:${e.episode}`;
+        const ex = seen.get(kk);
+        if (!ex) { existing.watched_episodes.push(e); seen.set(kk, e); }
+        else if (ex.runtime == null && e.runtime != null) ex.runtime = e.runtime;
+      }
+      if (t.last_watched_at && (!existing.last_watched_at || t.last_watched_at > existing.last_watched_at)) existing.last_watched_at = t.last_watched_at;
       if (existing.runtime == null) existing.runtime = t.runtime;
       if (t.status === "finished" && existing.status === "watch_next") existing.status = "finished";
       return existing;
@@ -168,6 +176,13 @@ export function parseExport(files: FileMap): ParsedImport {
     const u = parseCsv(userCsv)[0];
     if (u?.name && u.name !== u.id) profile.name = u.name;
   }
+  // Display name + avatar come from the social profile (screen_name / picture_url).
+  const social = files["user_social_data.csv"];
+  if (social) {
+    const s = parseCsv(social)[0];
+    if (s?.screen_name) profile.name = s.screen_name;
+    if (s?.picture_url) profile.avatar_url = s.picture_url;
+  }
 
   // The v2 tracking table: one row per watched episode + one "user-series-*" row per show.
   const v2 = files["tracking-prod-records-v2.csv"];
@@ -196,35 +211,24 @@ export function parseExport(files: FileMap): ParsedImport {
         : watchedCount > 0 ? "watching"
         : "not_started";
 
-    if (hasJsonShows) {
-      // Enrich existing (JSON) shows with real per-episode runtimes from GDPR.
-      const runtimeByKey = new Map<string, number>();
-      for (const [sid, list] of epsByShow) {
-        for (const e of list) if (e.runtime) runtimeByKey.set(`${sid}:${e.season}:${e.episode}`, e.runtime);
-      }
-      for (const t of titles) {
-        if (t.kind !== "show" || !t.tvdb_id) continue;
-        for (const e of t.watched_episodes) {
-          const rt = runtimeByKey.get(`${t.tvdb_id}:${e.season}:${e.episode}`);
-          if (rt && e.runtime == null) e.runtime = rt;
-        }
-      }
-    } else {
-      // GDPR-only: build shows + episodes from scratch.
-      for (const r of showRows) {
-        const sid = r.s_id;
-        const tvdb = sid && /^\d+$/.test(sid) ? Number(sid) : null;
-        const eps = (sid && epsByShow.get(sid)) || (r.series_name && epsByShow.get(r.series_name)) || [];
-        // De-dup repeated (season, episode) rows (rewatches).
-        const seen = new Set<string>();
-        const uniqueEps = eps.filter((e) => { const k = `${e.season}:${e.episode}`; if (seen.has(k)) return false; seen.add(k); return true; });
-        add({
-          kind: "show", uuid: r.uuid ?? null, tvdb_id: tvdb, imdb_id: null, name: r.series_name || "Untitled",
-          status: gdprStatus(r, uniqueEps.length), is_favorite: false, rating: null, runtime: null,
-          added_at: toIso(r.followed_at || r.created_at), last_watched_at: lastByShow.get(sid || r.series_name) ?? null,
-          watched_episodes: uniqueEps,
-        });
-      }
+    // Build every GDPR show and merge it in. add() unions watched episodes into a
+    // matching JSON show (or creates the show if the JSON export missed it), so we
+    // get the most complete watch history from both sources.
+    for (const r of showRows) {
+      const sid = r.s_id;
+      const tvdb = sid && /^\d+$/.test(sid) ? Number(sid) : null;
+      const eps = (sid && epsByShow.get(sid)) || (r.series_name && epsByShow.get(r.series_name)) || [];
+      const seen = new Set<string>(); // de-dup repeated (season, episode) rows (rewatches)
+      const uniqueEps = eps.filter((e) => { const k = `${e.season}:${e.episode}`; if (seen.has(k)) return false; seen.add(k); return true; });
+      const t = add({
+        kind: "show", uuid: r.uuid ?? null, tvdb_id: tvdb, imdb_id: null, name: r.series_name || "Untitled",
+        status: gdprStatus(r, uniqueEps.length), is_favorite: false, rating: null, runtime: null,
+        added_at: toIso(r.followed_at || r.created_at), last_watched_at: lastByShow.get(sid || r.series_name) ?? null,
+        watched_episodes: uniqueEps,
+      });
+      // GDPR statuses are authoritative for these two hand-set states.
+      if (r.is_archived === "true") t.status = "stopped";
+      else if (r.is_for_later === "true" && t.status === "not_started") t.status = "watch_next";
     }
   }
 
