@@ -1,7 +1,7 @@
 import type { Env } from "./types";
 import type { ParsedImport, LibraryItem, Stats, Status, TitleMeta } from "../../shared/types";
 import { effectiveStatus } from "../../shared/types";
-import { resolveMeta, fetchDetail } from "./tmdb";
+import { resolveMeta, fetchDetail, lastAiredEpisode } from "./tmdb";
 
 // Stable title id derived from external ids, so the row keeps the same id before
 // and after TMDB resolution (library rows never need rewriting). The name-based
@@ -104,6 +104,36 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
   ).run();
 
   return { titles: data.titles.length, episodes };
+}
+
+/**
+ * Cron refresh: for finished shows, ask TMDB for the latest aired episode. If it's
+ * beyond what the user has watched, new episodes have aired since the export —
+ * flip the show back to "watching" so it resurfaces. Also fills missing posters.
+ * Processes a bounded number of shows per run to respect subrequest limits.
+ */
+export async function refreshNewEpisodes(env: Env, limit = 60): Promise<{ checked: number; updated: number }> {
+  const key = await tmdbKey(env);
+  if (!key) return { checked: 0, updated: 0 };
+  const { results } = await env.DB.prepare(
+    `SELECT l.rowid AS lrid, l.user_id, l.title_id, t.tmdb_id,
+            (SELECT MAX(w.season * 1000 + w.episode) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0) AS max_watched
+     FROM library l JOIN titles t ON t.id = l.title_id
+     WHERE l.kind = 'show' AND l.status = 'finished' AND t.tmdb_id IS NOT NULL AND t.tmdb_id > 0
+     ORDER BY l.last_watched_at DESC LIMIT ?`,
+  ).bind(limit).all<{ user_id: string; title_id: string; tmdb_id: number; max_watched: number }>();
+
+  let updated = 0;
+  for (const row of results) {
+    const last = await lastAiredEpisode(key, row.tmdb_id);
+    if (!last) continue;
+    const lastKey = last.season * 1000 + last.episode;
+    if (lastKey > (row.max_watched ?? 0)) {
+      await env.DB.prepare("UPDATE library SET status = 'watching' WHERE user_id = ? AND title_id = ?").bind(row.user_id, row.title_id).run();
+      updated++;
+    }
+  }
+  return { checked: results.length, updated };
 }
 
 /** The clean numeric ref (rowid) for a title's string id. */

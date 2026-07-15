@@ -196,6 +196,14 @@ export async function search(key: string | undefined, query: string): Promise<Se
 
 export { fetchDetail };
 
+/** The most recently aired episode (season, number) for a show, per TMDB. */
+export async function lastAiredEpisode(key: string | undefined, tmdbId: number): Promise<{ season: number; episode: number } | null> {
+  const d = await tmdb<any>(key, `/tv/${tmdbId}`);
+  const e = d?.last_episode_to_air;
+  if (!e || e.season_number == null) return null;
+  return { season: e.season_number, episode: e.episode_number };
+}
+
 export interface SeasonData {
   season: number;
   name: string;

@@ -4,7 +4,7 @@ import { createMagicToken, verifyMagicToken, setSessionCookie, clearSession, req
 import { sendMagicLink } from "./email";
 import { parseZips } from "./import";
 import { search, fetchSeasons } from "./tmdb";
-import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey, getLists, ensureTitle, refOf, getUnmatched, relinkTitle } from "./store";
+import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey, getLists, ensureTitle, refOf, getUnmatched, relinkTitle, refreshNewEpisodes } from "./store";
 import type { Status } from "../../shared/types";
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -136,7 +136,24 @@ app.post("/api/title/:id/episode", requireAuth, async (c) => {
   return c.json({ ok: true });
 });
 
+// Manual trigger for the same refresh the cron runs (handy for testing).
+app.post("/api/refresh", requireAuth, async (c) => {
+  const posters = await resolveBatch(c.env, 50);
+  const episodes = await refreshNewEpisodes(c.env, 60);
+  return c.json({ posters, episodes });
+});
+
 // SPA fallback: anything not matched above is served by the static assets binding.
 app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  // Cloudflare Cron Trigger (see wrangler.jsonc). Keeps posters fresh and moves
+  // finished shows back to "watching" when TMDB reports newly-aired episodes.
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil((async () => {
+      await resolveBatch(env, 50);
+      await refreshNewEpisodes(env, 100);
+    })());
+  },
+} satisfies ExportedHandler<Env>;

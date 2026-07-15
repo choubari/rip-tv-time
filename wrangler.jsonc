@@ -13,6 +13,8 @@
     "binding": "ASSETS"
   },
   "observability": { "enabled": true },
+  // Daily refresh: posters + detect newly-aired episodes (finished → watching).
+  "triggers": { "crons": ["0 6 * * *"] },
   "d1_databases": [
     {
       "binding": "DB",
