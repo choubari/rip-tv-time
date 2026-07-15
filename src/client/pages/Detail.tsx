@@ -31,15 +31,20 @@ export function Detail() {
     }).catch(() => setT(null));
   }, [ref]);
 
-  // Merge TMDB's episode list with the episodes we know were watched, so every
-  // watched episode always shows even when TMDB is missing/incomplete (e.g. a
-  // local show TMDB thinks has 1 episode). Declared before any early return so
-  // hook order stays stable.
+  // The export's season/episode structure (t.episodes) is authoritative — it's
+  // where the user's watch data lives. TMDB only enriches matching episodes with
+  // stills/names. TMDB-only episodes (e.g. upcoming) are added ONLY when the show
+  // isn't finished, so a finished show with a different TMDB season layout (common
+  // for anime: TVDB uses 2 seasons, TMDB one flat season) doesn't grow phantoms.
   const showSeasons: SeasonData[] = useMemo(() => {
     if (!t) return [];
+    const finished = t.status === "finished";
+    const watchedKeys = new Set(t.episodes.map((e) => `${e.season}:${e.episode}`));
     const bySeason = new Map<number, Map<number, SeasonData["episodes"][number]>>();
-    const put = (season: number, ep: SeasonData["episodes"][number]) => {
+    const put = (season: number, ep: SeasonData["episodes"][number], fromTmdb: boolean) => {
       if (season <= 0) return; // ignore specials
+      // Don't introduce TMDB-only episodes on a finished show.
+      if (fromTmdb && finished && !watchedKeys.has(`${season}:${ep.episode}`)) return;
       if (!bySeason.has(season)) bySeason.set(season, new Map());
       const m = bySeason.get(season)!;
       const ex = m.get(ep.episode);
@@ -51,8 +56,9 @@ export function Detail() {
         if (ex.runtime == null && ep.runtime) ex.runtime = ep.runtime;
       }
     };
-    for (const s of seasons ?? []) for (const e of s.episodes) put(s.season, e);
-    for (const e of t.episodes) put(e.season, { episode: e.episode, name: "", air_date: null, runtime: null, still: null });
+    // Export episodes first (authoritative), then TMDB enrichment.
+    for (const e of t.episodes) put(e.season, { episode: e.episode, name: "", air_date: null, runtime: null, still: null }, false);
+    for (const s of seasons ?? []) for (const e of s.episodes) put(s.season, e, true);
     return [...bySeason.entries()]
       .map(([season, m]) => ({ season, name: seasons?.find((s) => s.season === season)?.name ?? `Season ${season}`, episodes: [...m.values()].sort((a, b) => a.episode - b.episode) }))
       .sort((a, b) => a.season - b.season);
