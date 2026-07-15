@@ -66,8 +66,23 @@ function shapeMovie(d: any): TmdbMeta {
   };
 }
 
-const normName = (s: string) => s.toLowerCase().replace(/\(\d{4}\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+const normName = (s: string) => s.toLowerCase().replace(/\(\d{4}\)/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 const tokensOf = (s: string) => normName(s).split(" ").filter(Boolean);
+
+/** Normalized edit-distance similarity (0..1). */
+function charRatio(a: string, b: string): number {
+  if (!a.length || !b.length) return 0;
+  const m = a.length, n = b.length;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] : 1 + Math.min(prev[j], cur[j - 1], prev[j - 1]);
+    }
+    prev = cur;
+  }
+  return 1 - prev[n] / Math.max(m, n);
+}
 
 /** True if the shorter token list is a contiguous run inside the longer one. */
 function tokenSubsequence(a: string[], b: string[]): boolean {
@@ -84,6 +99,10 @@ function namesMatch(a: string, b: string): boolean {
   const ta = tokensOf(a), tb = tokensOf(b);
   if (!ta.length || !tb.length) return false;
   if (ta.join(" ") === tb.join(" ")) return true;
+  // Near-identical strings (e.g. "You're Beautiful" vs "You Are Beautiful") match;
+  // a short name buried in a longer one (e.g. "Inside" vs "Vandaag Inside") won't,
+  // because its overall character ratio stays low.
+  if (charRatio(ta.join(" "), tb.join(" ")) >= 0.8) return true;
   // A short title that is a leading run of the longer one (e.g. "Weak Hero" ⊂
   // "Weak Hero Class 1") matches; a word buried mid-title (e.g. "Cream" inside
   // "The Ice Cream Girls") does not, because it's not a prefix run.
@@ -111,10 +130,11 @@ export async function resolveMeta(
   ids: { tvdb_id: number | null; imdb_id: string | null; name: string; watched?: number },
 ): Promise<TmdbMeta | null> {
   const findKind = kind === "show" ? "tv_results" : "movie_results";
-  // A candidate show is rejected if TMDB says it has fewer episodes than the user
-  // has watched — that means the external id mapped to the wrong (smaller) show.
+  // A candidate show is rejected only if TMDB *knows* its episode count and it is
+  // fewer than the user has watched (wrong, smaller show). If TMDB's count is
+  // unknown (null), don't reject on that basis — many valid shows lack the field.
   const enoughEpisodes = (m: TmdbMeta) =>
-    kind === "movie" || !ids.watched || (m.total_episodes ?? 0) >= ids.watched;
+    kind === "movie" || !ids.watched || m.total_episodes == null || m.total_episodes >= ids.watched;
   const acceptable = (m: TmdbMeta, trustName: boolean) =>
     (trustName || namesMatch(m.name, ids.name)) && enoughEpisodes(m);
 

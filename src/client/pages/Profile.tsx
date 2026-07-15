@@ -21,12 +21,14 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
   const [stats, setStats] = useState<Stats | null>(null);
   const [lib, setLib] = useState<LibraryItem[]>([]);
   const [lists, setLists] = useState<ListSummary[]>([]);
+  const [unmatched, setUnmatched] = useState<{ ref: number; name: string; kind: string }[]>([]);
   const nav = useNavigate();
 
   useEffect(() => {
     api.stats().then(setStats).catch(() => {});
     api.library().then(setLib).catch(() => {});
     api.lists().then(setLists).catch(() => {});
+    api.unmatched().then(setUnmatched).catch(() => {});
   }, []);
 
   async function logout() { await api.logout(); onChange(); nav("/"); }
@@ -76,6 +78,23 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
       {favMovies.length > 0 && <Showcase title="Favorite movies" to="/movies" items={favMovies} heart />}
 
       <TmdbKeySettings />
+
+      {unmatched.length > 0 && (
+        <div style={{ padding: 16 }}>
+          <h2 style={{ fontSize: 16 }}>Couldn't match on TMDB <span className="count">{unmatched.length}</span></h2>
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+            These titles have no reliable TMDB match, so they show without a poster. Names are kept from your export.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {unmatched.map((u) => (
+              <a key={u.ref} href={`/${u.kind}/${u.ref}`} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
+                <span>{u.name}</span>
+                <span className="muted" style={{ fontSize: 12 }}>{u.kind === "show" ? "TV" : "Movie"}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
         <Link className="btn ghost" to="/import" style={{ textAlign: "center" }}>Re-import data</Link>

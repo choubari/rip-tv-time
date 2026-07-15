@@ -52,14 +52,17 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
           // specials-excluding fix and newly-aired episodes are picked up) while
           // keeping the existing poster until the refresh lands.
           // total_episodes comes from the export (authoritative — TMDB counts are
-          // often wrong, e.g. specials or wrong ID). Poster is cleared to refetch.
+          // often wrong). Only re-fetch the poster when the title NAME changed
+          // (i.e. a previously wrong match got corrected) — otherwise keep the
+          // existing artwork so a re-import doesn't blank everyone's posters.
           `INSERT INTO titles (id, kind, tvdb_id, imdb_id, name, runtime, total_episodes) VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              name = excluded.name,
              runtime = COALESCE(titles.runtime, excluded.runtime),
              total_episodes = COALESCE(excluded.total_episodes, titles.total_episodes),
-             poster_path = NULL, backdrop_path = NULL,
-             resolve_failed = 0`,
+             poster_path = CASE WHEN titles.name <> excluded.name THEN NULL ELSE titles.poster_path END,
+             backdrop_path = CASE WHEN titles.name <> excluded.name THEN NULL ELSE titles.backdrop_path END,
+             resolve_failed = CASE WHEN titles.name <> excluded.name OR titles.poster_path IS NULL THEN 0 ELSE titles.resolve_failed END`,
         ).bind(id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime, t.total_episodes ?? null),
       );
       stmts.push(
@@ -121,12 +124,11 @@ export async function tmdbKey(env: Env): Promise<string | undefined> {
 export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: number; remaining: number }> {
   const key = await tmdbKey(env);
   const { results } = await env.DB.prepare(
-    // Needs resolution if it has no poster, or it's a show whose episode total was
-    // cleared for recompute on the last import. `watched` guards against wrong
+    // Resolve anything still without a poster. `watched` guards against wrong
     // external-id matches (a show that maps to a smaller TMDB title).
     `SELECT t.id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime,
             (SELECT COUNT(DISTINCT w.season || ':' || w.episode) FROM watched_episodes w WHERE w.title_id = t.id AND w.season > 0) AS watched
-     FROM titles t WHERE t.resolve_failed = 0 AND (t.poster_path IS NULL OR (t.kind = 'show' AND t.total_episodes IS NULL)) LIMIT ?`,
+     FROM titles t WHERE t.resolve_failed = 0 AND t.poster_path IS NULL LIMIT ?`,
   ).bind(limit).all<{ id: string; kind: "show" | "movie"; tvdb_id: number | null; imdb_id: string | null; name: string; runtime: number | null; watched: number }>();
 
   let resolved = 0;
@@ -143,7 +145,7 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
       await env.DB.prepare("UPDATE titles SET resolve_failed = 1 WHERE id = ?").bind(row.id).run();
     }
   }
-  const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE resolve_failed = 0 AND (poster_path IS NULL OR (kind = 'show' AND total_episodes IS NULL))").first<{ c: number }>();
+  const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE resolve_failed = 0 AND poster_path IS NULL").first<{ c: number }>();
   if (rem?.c === 0) await dedupeByTmdb(env);
   return { resolved, remaining: rem?.c ?? 0 };
 }
@@ -212,6 +214,16 @@ export async function getLibrary(env: Env, userId: string, kind?: string): Promi
   );
   const { results } = await (kind ? stmt.bind(userId, kind) : stmt.bind(userId)).all<any>();
   return results.map(rowToItem);
+}
+
+/** Titles in the user's library that TMDB couldn't confidently match (no poster). */
+export async function getUnmatched(env: Env, userId: string): Promise<{ ref: number; name: string; kind: string }[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT t.rowid AS ref, t.name, t.kind FROM library l JOIN titles t ON t.id = l.title_id
+     WHERE l.user_id = ? AND t.resolve_failed = 1 AND t.poster_path IS NULL
+     ORDER BY t.kind, t.name COLLATE NOCASE`,
+  ).bind(userId).all<{ ref: number; name: string; kind: string }>();
+  return results;
 }
 
 export async function getLists(env: Env, userId: string): Promise<import("../../shared/types").ListSummary[]> {

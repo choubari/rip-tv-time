@@ -35,6 +35,16 @@ export const STATUS_LABEL: Record<Status, string> = {
   stopped: "Stopped watching",
 };
 
+// TV Time's status color coding for the little bar under each poster.
+export const STATUS_COLOR: Record<Status, string> = {
+  stopped: "#e01e1e", // red
+  finished: "#21d07a", // green
+  watch_next: "#f5a623", // orange
+  watching: "#f5c518", // yellow
+  paused: "#f5c518", // yellow (haven't watched in a while)
+  not_started: "#5a5a5f", // grey
+};
+
 /** Derive the status shown in the UI from stored base status + watch activity. */
 export function effectiveStatus(item: {
   kind: Kind;
