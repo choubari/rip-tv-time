@@ -1,8 +1,8 @@
 /* rip tv time — TV Time-inspired dark theme.
    Change --primary to re-skin the whole app. */
 :root {
-  --primary: #ff7a00; /* orange accent */
-  --primary-dim: #cc6200;
+  --primary: #21d07a; /* green accent (matches the "finished" bar) */
+  --primary-dim: #1aa862;
   --bg: #0f0f0f;
   --bg-elev: #1b1b1d;
   --bg-elev-2: #262629;
@@ -71,7 +71,7 @@ img { display: block; }
 }
 .poster .art img { width: 100%; height: 100%; object-fit: cover; }
 .poster .placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 11px; text-align: center; padding: 8px; }
-.poster .title { font-size: 12.5px; margin-top: 10px; line-height: 1.25; font-weight: 600; }
+.poster .title { font-size: 12.5px; margin-top: 16px; line-height: 1.25; font-weight: 600; }
 .poster .sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
 .poster .badge { position: absolute; top: 6px; left: 6px; background: var(--primary); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 6px; }
 .poster .fav { position: absolute; top: 6px; right: 6px; color: var(--primary); }
@@ -85,10 +85,10 @@ img { display: block; }
 .section-head { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 14px 16px 6px; position: sticky; top: calc(49px + env(safe-area-inset-top)); z-index: 15; }
 .section-head h2 {
   font-size: 12px; margin: 0; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
-  background: var(--bg-elev-2); color: var(--text); padding: 7px 16px; border-radius: 999px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.4); display: inline-flex; align-items: center; gap: 8px;
+  background: #3a3a3e; color: var(--text); padding: 7px 16px; border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.35); display: inline-flex; align-items: center; gap: 6px;
 }
-.section-head .count { color: var(--text-dim); font-size: 12px; }
+.section-head h2 .count { color: var(--text-dim); font-size: 12px; font-weight: 700; }
 /* Left-aligned variant used by profile rows (with chevron) */
 .section-head.link, .section-head.static { justify-content: space-between; position: static; }
 .section-head.link h2, .section-head.static h2 { background: none; box-shadow: none; padding: 0; font-size: 15px; font-weight: 800; text-transform: none; letter-spacing: 0; }

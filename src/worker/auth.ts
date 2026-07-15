@@ -9,6 +9,22 @@ const TOKEN_TTL = 60 * 15; // 15 minutes
 const rid = () => crypto.randomUUID().replace(/-/g, "");
 const now = () => Math.floor(Date.now() / 1000);
 
+export const isAdmin = (env: Env, email: string | null | undefined) =>
+  !!email && !!env.ADMIN_EMAIL && email.toLowerCase() === env.ADMIN_EMAIL.toLowerCase();
+
+/** Who may manage the platform TMDB key: the admin, or anyone on an open (non-invite) instance. */
+export const canManageKey = (env: Env, email: string | null | undefined) =>
+  env.INVITE_ONLY !== "true" || isAdmin(env, email);
+
+/** Whether an email may sign in (open instance, or on the invite allowlist). */
+export async function isEmailAllowed(env: Env, email: string): Promise<boolean> {
+  const e = email.toLowerCase().trim();
+  if (env.INVITE_ONLY !== "true") return true; // open instance
+  if (isAdmin(env, e) || (env.DEMO_EMAIL && e === env.DEMO_EMAIL.toLowerCase())) return true;
+  const row = await env.DB.prepare("SELECT 1 FROM allowed_emails WHERE email = ?").bind(e).first();
+  return !!row;
+}
+
 /** Create a magic-link token for an email. Returns the token string. */
 export async function createMagicToken(env: Env, email: string): Promise<string> {
   const token = rid() + rid();
@@ -16,6 +32,12 @@ export async function createMagicToken(env: Env, email: string): Promise<string>
     .bind(token, email.toLowerCase().trim(), now() + TOKEN_TTL)
     .run();
   return token;
+}
+
+/** Look up the email for a session's user (for admin checks). */
+export async function sessionEmail(env: Env, userId: string): Promise<string | null> {
+  const u = await env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(userId).first<{ email: string }>();
+  return u?.email ?? null;
 }
 
 /** Consume a token, upsert the user, and start a session. Returns session id + user id. */

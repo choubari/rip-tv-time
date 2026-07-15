@@ -9,3 +9,12 @@ TMDB_API_KEY=
 # console and shown in the UI when these are unset).
 RESEND_API_KEY=
 MAIL_FROM=login@yourdomain.com
+
+# --- Access control (for a public/shared deployment) ---
+# Restrict sign-in to an allowlist. When "true", only ADMIN_EMAIL, DEMO_EMAIL,
+# and emails the admin invites (Profile → Invited users) can sign in.
+INVITE_ONLY=false
+# The platform owner: manages the invite list and the shared TMDB key.
+ADMIN_EMAIL=
+# Optional read-only demo account for a public OSS deploy ("Try the demo" button).
+DEMO_EMAIL=

@@ -5,23 +5,27 @@ import { api } from "../lib/api";
 import { PosterGrid } from "../components/Poster";
 import { Loading } from "../components/Loading";
 
-// Opens a list or the favorites collection as a full poster grid.
-export function Collection({ mode }: { mode: "list" | "favorites" }) {
+// Opens a list, the favorites, or all-of-a-kind as a full poster grid.
+export function Collection({ mode }: { mode: "list" | "favorites" | "all" }) {
   const { id = "", kind = "" } = useParams();
   const [title, setTitle] = useState("");
   const [items, setItems] = useState<LibraryItem[] | null>(null);
   const nav = useNavigate();
 
   useEffect(() => {
+    const label = kind === "movie" ? "Movies" : "Shows";
     if (mode === "list") {
       api.lists().then((lists) => {
         const l = lists.find((x) => String(x.id) === id);
         setTitle(l?.name ?? "List");
         setItems(l?.items ?? []);
       }).catch(() => setItems([]));
-    } else {
-      setTitle(kind === "movie" ? "Favorite movies" : "Favorite shows");
+    } else if (mode === "favorites") {
+      setTitle(`Favorite ${label.toLowerCase()}`);
       api.library(kind).then((lib) => setItems(lib.filter((i) => i.is_favorite))).catch(() => setItems([]));
+    } else {
+      setTitle(`All ${label.toLowerCase()}`);
+      api.library(kind).then(setItems).catch(() => setItems([]));
     }
   }, [mode, id, kind]);
 

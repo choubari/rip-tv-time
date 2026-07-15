@@ -188,15 +188,22 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
 }
 
 /**
- * Some exports list the same title under two different TVDB ids (e.g. a movie
- * duplicated in movies.json). Once resolved they share one tmdb_id — collapse the
- * duplicates into a single canonical title so it appears once per user.
+ * Some exports list the same title under two different ids, and opening a search
+ * result can create another. Once they share a tmdb_id, collapse them into the
+ * canonical title — the one that actually has watch history — so the merged row
+ * keeps the user's episodes and status.
  */
 async function dedupeByTmdb(env: Env): Promise<void> {
   const { results: dupes } = await env.DB.prepare(
-    `SELECT kind, tmdb_id, MIN(id) AS keep FROM titles
-     WHERE tmdb_id IS NOT NULL AND tmdb_id > 0
-     GROUP BY kind, tmdb_id HAVING COUNT(*) > 1`,
+    // Canonical = the id with the most watched episodes (ties broken by MIN id).
+    `SELECT t.kind, t.tmdb_id,
+            (SELECT t2.id FROM titles t2
+             WHERE t2.kind = t.kind AND t2.tmdb_id = t.tmdb_id
+             ORDER BY (SELECT COUNT(*) FROM watched_episodes w WHERE w.title_id = t2.id) DESC, t2.id ASC
+             LIMIT 1) AS keep
+     FROM titles t
+     WHERE t.tmdb_id IS NOT NULL AND t.tmdb_id > 0
+     GROUP BY t.kind, t.tmdb_id HAVING COUNT(*) > 1`,
   ).all<{ kind: string; tmdb_id: number; keep: string }>();
   for (const d of dupes) {
     const { results: others } = await env.DB.prepare(
@@ -260,9 +267,11 @@ export async function relinkTitle(env: Env, ref: number, tmdbId: number): Promis
   const meta = await fetchDetail(await tmdbKey(env), row.kind, tmdbId);
   if (!meta) return false;
   await env.DB.prepare(
-    // Keep the export's own name + episode total; take everything else from TMDB.
-    `UPDATE titles SET tmdb_id=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
+    // Keep the export's own name; take episode total + everything else from TMDB
+    // (the user explicitly chose this id, so trust its episode count).
+    `UPDATE titles SET tmdb_id=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
   ).bind(meta.tmdb_id, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
+  await dedupeByTmdb(env); // collapse into the copy that has the watch history
   return true;
 }
 

@@ -72,12 +72,14 @@ export function Profile({ user, onChange }: { user: UserProfile; onChange: () =>
         </section>
       )}
 
-      {shows.length > 0 && <Showcase title="Shows" to="/" items={shows} />}
+      {shows.length > 0 && <Showcase title="Shows" to="/all/show" items={shows} />}
       {favShows.length > 0 && <Showcase title="Favorite shows" to="/favorites/show" items={favShows} heart />}
-      {movies.length > 0 && <Showcase title="Movies" to="/movies" items={movies} />}
+      {movies.length > 0 && <Showcase title="Movies" to="/all/movie" items={movies} />}
       {favMovies.length > 0 && <Showcase title="Favorite movies" to="/favorites/movie" items={favMovies} heart />}
 
       <TmdbKeySettings />
+
+      {user.is_admin && <AdminPanel />}
 
       {unmatched.length > 0 && (
         <div style={{ padding: 16 }}>
@@ -131,6 +133,37 @@ function ListCard({ list }: { list: ListSummary }) {
   );
 }
 
+// Admin-only: invite allowlist management.
+function AdminPanel() {
+  const [emails, setEmails] = useState<string[]>([]);
+  const [email, setEmail] = useState("");
+  useEffect(() => { api.allowed().then(setEmails).catch(() => {}); }, []);
+  async function add() {
+    const e = email.trim().toLowerCase();
+    if (!e) return;
+    await api.allow(e); setEmails((c) => [...new Set([...c, e])].sort()); setEmail("");
+  }
+  async function remove(e: string) { await api.disallow(e); setEmails((c) => c.filter((x) => x !== e)); }
+  return (
+    <div style={{ padding: 16 }}>
+      <h2 style={{ fontSize: 16 }}>Invited users <span className="count">{emails.length}</span></h2>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Only these emails (plus you) can sign in when invite-only mode is on.</p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input className="input" type="email" placeholder="friend@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <button className="btn" disabled={!email.trim()} onClick={add}>Invite</button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 8 }}>
+        {emails.map((e) => (
+          <div key={e} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
+            <span>{e}</span>
+            <button className="chip" onClick={() => remove(e)}>Remove</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RelinkRow({ item, onDone }: { item: { ref: number; name: string; kind: string }; onDone: () => void }) {
   const [tmdbId, setTmdbId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -169,12 +202,13 @@ function Stat({ num, text, label, accent }: { num?: number; text?: string; label
 
 function TmdbKeySettings() {
   const [has, setHas] = useState<boolean | null>(null);
+  const [canEdit, setCanEdit] = useState(false);
   const [key, setKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
 
-  useEffect(() => { api.getSettings().then((s) => setHas(s.has_tmdb_key)).catch(() => setHas(false)); }, []);
+  useEffect(() => { api.getSettings().then((s) => { setHas(s.has_tmdb_key); setCanEdit(s.can_edit); }).catch(() => setHas(false)); }, []);
 
   // Fetch posters/artwork for everything still unresolved (no re-import needed).
   async function fetchArtwork() {
@@ -206,11 +240,14 @@ function TmdbKeySettings() {
     finally { setBusy(false); }
   }
 
+  // The TMDB key is platform-wide and managed by the admin only.
+  if (!canEdit) return null;
+
   return (
     <div style={{ padding: 16 }}>
       <h2 style={{ fontSize: 16 }}>TMDB API key {has === true && <span style={{ color: "var(--primary)" }}>· connected</span>}</h2>
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-        Needed for posters, artwork, episode lists and search. Get a free key at{" "}
+        Platform-wide key (admin). Needed for posters, artwork, episode lists and search. Get a free key at{" "}
         <a style={{ color: "var(--primary)" }} href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a>.
       </p>
       <div style={{ display: "flex", gap: 8 }}>

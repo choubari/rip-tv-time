@@ -44,6 +44,7 @@ export default function App() {
         <Route path="/movie/:ref" element={<Detail />} />
         <Route path="/list/:id" element={<Collection mode="list" />} />
         <Route path="/favorites/:kind" element={<Collection mode="favorites" />} />
+        <Route path="/all/:kind" element={<Collection mode="all" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <BottomNav />

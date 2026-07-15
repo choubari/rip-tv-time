@@ -52,6 +52,10 @@ export function Login({ onDone }: { onDone: () => void }) {
             <button className="btn" style={{ width: "100%", marginTop: 12 }} disabled={busy}>
               {busy ? "Sending…" : "Send magic link"}
             </button>
+            <button type="button" className="btn ghost" style={{ width: "100%", marginTop: 8 }}
+              onClick={async () => { try { await api.demoLogin(); onDone(); } catch { setErr("Demo isn't available on this instance."); } }}>
+              Try the demo
+            </button>
           </form>
         )}
       </div>

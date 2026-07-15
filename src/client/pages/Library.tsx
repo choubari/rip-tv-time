@@ -39,8 +39,7 @@ export function Library({ kind, heading }: { kind: Kind; heading: string }) {
       {groups.map(([status, list]) => (
         <section key={status}>
           <div className="section-head">
-            <h2>{STATUS_LABEL[status]}</h2>
-            <span className="count">{list.length}</span>
+            <h2>{STATUS_LABEL[status]} <span className="count">({list.length})</span></h2>
           </div>
           <PosterGrid items={list} showProgress={kind === "show" && (status === "watching" || status === "paused")} />
         </section>

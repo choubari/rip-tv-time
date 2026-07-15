@@ -102,7 +102,7 @@ export function Detail() {
           <p className="muted" style={{ margin: "0 0 6px", fontSize: 13 }}>
             {[
               isShow && showSeasons.length ? `${showSeasons.length} season${showSeasons.length > 1 ? "s" : ""}` : t.release_date?.slice(0, 4),
-              STATUS_LABEL[t.status],
+              t.tracked ? STATUS_LABEL[t.status] : "Not tracked",
               t.genres.slice(0, 2).join(" · "),
             ].filter(Boolean).join(" · ")}
           </p>
@@ -119,16 +119,19 @@ export function Detail() {
 
       {(!isShow || tab === "about") && (
         <div style={{ padding: 16 }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
-            <select className="input" style={{ flex: 1 }} value={t.status} onChange={(e) => patch({ status: e.target.value as Status })}>
-              {STATUS_MENU.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-            </select>
-            <button className="btn ghost" style={{ color: t.is_favorite ? "var(--primary)" : undefined }} onClick={() => patch({ is_favorite: !t.is_favorite })}>
-              <StarIcon filled={t.is_favorite} />
-            </button>
-          </div>
+          {t.tracked && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
+              <select className="input" style={{ flex: 1 }} value={t.status} onChange={(e) => patch({ status: e.target.value as Status })}>
+                {STATUS_MENU.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+              </select>
+              <button className="btn ghost" style={{ color: t.is_favorite ? "var(--primary)" : undefined }} onClick={() => patch({ is_favorite: !t.is_favorite })}>
+                <StarIcon filled={t.is_favorite} />
+              </button>
+            </div>
+          )}
           {t.overview ? <p style={{ lineHeight: 1.55 }}>{t.overview}</p> : <p className="muted">No description available.</p>}
           {t.genres.length > 0 && <p className="muted" style={{ fontSize: 13 }}>{t.genres.join(" · ")}</p>}
+          <Relink refId={t.ref} onDone={() => location.reload()} />
         </div>
       )}
 
@@ -242,6 +245,27 @@ function SeasonBlock({ s, watched, count, allOn, onToggle, onToggleAll, onOpen }
         );
       })}
     </>
+  );
+}
+
+// Fix a wrong TMDB match by pasting the correct id from themoviedb.org.
+function Relink({ refId, onDone }: { refId: number; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [id, setId] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!open) return <button className="chip" style={{ marginTop: 12 }} onClick={() => setOpen(true)}>Wrong poster / show?</button>;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <p className="muted" style={{ fontSize: 13, margin: "0 0 6px" }}>
+        Find the correct title on <a style={{ color: "var(--primary)" }} href="https://www.themoviedb.org" target="_blank" rel="noreferrer">themoviedb.org</a> and paste the number from its URL (e.g. <code>/tv/1396</code>).
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input className="input" placeholder="TMDB id" value={id} onChange={(e) => setId(e.target.value)} />
+        <button className="btn" disabled={busy || !id.trim()} onClick={async () => { setBusy(true); const n = parseInt(id.replace(/\D/g, ""), 10); if (n) { await api.relink(refId, n); onDone(); } setBusy(false); }}>
+          {busy ? "…" : "Fix"}
+        </button>
+      </div>
+    </div>
   );
 }
 

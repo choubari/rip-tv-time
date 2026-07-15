@@ -22,8 +22,12 @@ export interface TitleDetail extends LibraryItem {
 
 export const api = {
   requestLink: (email: string) => req<{ ok: boolean; delivered: boolean; devLink?: string }>("/api/auth/request", json({ email })),
+  demoLogin: () => req<{ ok: boolean }>("/api/auth/demo", { method: "POST" }),
   logout: () => req("/api/auth/logout", { method: "POST" }),
   me: () => req<UserProfile>("/api/me"),
+  allowed: () => req<string[]>("/api/admin/allowed"),
+  allow: (email: string) => req("/api/admin/allowed", json({ email })),
+  disallow: (email: string) => req("/api/admin/allowed", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) }),
 
   importZips: (files: File[]) => {
     const fd = new FormData();
@@ -32,7 +36,7 @@ export const api = {
   },
   resolve: (limit = 40) => req<{ resolved: number; remaining: number }>(`/api/resolve?limit=${limit}`, { method: "POST" }),
 
-  getSettings: () => req<{ has_tmdb_key: boolean; tmdb_key_hint: string | null }>("/api/settings"),
+  getSettings: () => req<{ has_tmdb_key: boolean; can_edit: boolean; tmdb_key_hint: string | null }>("/api/settings"),
   setTmdbKey: (tmdb_key: string) => req<{ ok: boolean; valid: boolean }>("/api/settings", json({ tmdb_key })),
 
   library: (kind?: string) => req<LibraryItem[]>(`/api/library${kind ? `?kind=${kind}` : ""}`),

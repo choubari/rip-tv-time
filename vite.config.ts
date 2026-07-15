@@ -17,7 +17,7 @@ export default defineConfig({
         name: "rip tv time",
         short_name: "rip tv time",
         description: "Browse your exported TV Time watch history.",
-        theme_color: "#ff7a00",
+        theme_color: "#21d07a",
         background_color: "#0f0f0f",
         display: "standalone",
         icons: [

@@ -2,10 +2,16 @@
 -- Apply locally:  npm run db:migrate:local
 -- Apply to prod:  npm run db:migrate:remote
 
--- App-wide settings (e.g. the TMDB API key entered in the UI).
+-- App-wide settings (e.g. the TMDB API key entered by the admin).
 CREATE TABLE IF NOT EXISTS app_settings (
   key   TEXT PRIMARY KEY,
   value TEXT
+);
+
+-- Invite allowlist: when INVITE_ONLY is on, only these emails can sign in.
+CREATE TABLE IF NOT EXISTS allowed_emails (
+  email      TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS users (

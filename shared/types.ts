@@ -99,6 +99,8 @@ export interface UserProfile {
   bio: string | null;
   cover_url: string | null;
   avatar_url: string | null;
+  is_admin?: boolean;
+  is_demo?: boolean;
 }
 
 export interface Stats {

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env, Vars } from "./types";
-import { createMagicToken, verifyMagicToken, setSessionCookie, clearSession, requireAuth } from "./auth";
+import { createMagicToken, verifyMagicToken, setSessionCookie, clearSession, requireAuth, isEmailAllowed, isAdmin, canManageKey, sessionEmail } from "./auth";
 import { sendMagicLink } from "./email";
 import { parseZips } from "./import";
 import { search, fetchSeasons } from "./tmdb";
@@ -13,10 +13,21 @@ const app = new Hono<{ Bindings: Env; Variables: Vars }>();
 app.post("/api/auth/request", async (c) => {
   const { email } = await c.req.json<{ email?: string }>();
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "invalid email" }, 400);
+  if (!(await isEmailAllowed(c.env, email))) return c.json({ error: "This app is invite-only. Ask the owner for access." }, 403);
   const token = await createMagicToken(c.env, email);
   const link = `${c.env.APP_URL}/api/auth/verify?token=${token}`;
   const { delivered, devLink } = await sendMagicLink(c.env, email, link);
   return c.json({ ok: true, delivered, devLink });
+});
+
+// One-click demo sign-in (public OSS deploy). Only works if DEMO_EMAIL is set.
+app.post("/api/auth/demo", async (c) => {
+  if (!c.env.DEMO_EMAIL) return c.json({ error: "demo not enabled" }, 404);
+  const token = await createMagicToken(c.env, c.env.DEMO_EMAIL);
+  const res = await verifyMagicToken(c.env, token);
+  if (!res) return c.json({ error: "demo unavailable" }, 500);
+  setSessionCookie(c, res.sessionId);
+  return c.json({ ok: true });
 });
 
 app.get("/api/auth/verify", async (c) => {
@@ -35,8 +46,31 @@ app.post("/api/auth/logout", async (c) => {
 
 // -------------------------------------------------------- authed routes
 app.get("/api/me", requireAuth, async (c) => {
-  const u = await c.env.DB.prepare("SELECT id, email, name, bio, cover_url, avatar_url FROM users WHERE id = ?").bind(c.get("userId")).first();
-  return c.json(u);
+  const u = await c.env.DB.prepare("SELECT id, email, name, bio, cover_url, avatar_url FROM users WHERE id = ?").bind(c.get("userId")).first<{ email: string }>();
+  const demo = !!c.env.DEMO_EMAIL && u?.email.toLowerCase() === c.env.DEMO_EMAIL.toLowerCase();
+  return c.json({ ...u, is_admin: isAdmin(c.env, u?.email), is_demo: demo });
+});
+
+// Admin-only: manage the invite allowlist.
+async function requireAdmin(c: any, next: any) {
+  const email = await sessionEmail(c.env, c.get("userId"));
+  if (!isAdmin(c.env, email)) return c.json({ error: "admin only" }, 403);
+  await next();
+}
+app.get("/api/admin/allowed", requireAuth, requireAdmin, async (c) => {
+  const { results } = await c.env.DB.prepare("SELECT email FROM allowed_emails ORDER BY email").all();
+  return c.json(results.map((r: any) => r.email));
+});
+app.post("/api/admin/allowed", requireAuth, requireAdmin, async (c) => {
+  const { email } = await c.req.json<{ email?: string }>();
+  if (!email) return c.json({ error: "email required" }, 400);
+  await c.env.DB.prepare("INSERT INTO allowed_emails (email) VALUES (?) ON CONFLICT DO NOTHING").bind(email.toLowerCase().trim()).run();
+  return c.json({ ok: true });
+});
+app.delete("/api/admin/allowed", requireAuth, requireAdmin, async (c) => {
+  const { email } = await c.req.json<{ email?: string }>();
+  await c.env.DB.prepare("DELETE FROM allowed_emails WHERE email = ?").bind((email ?? "").toLowerCase().trim()).run();
+  return c.json({ ok: true });
 });
 
 app.post("/api/import", requireAuth, async (c) => {
@@ -107,14 +141,16 @@ app.get("/api/search", requireAuth, async (c) => {
 app.get("/api/settings", requireAuth, async (c) => {
   const key = await getSetting(c.env, "tmdb_key");
   const envKey = !!c.env.TMDB_API_KEY;
-  return c.json({ has_tmdb_key: !!(key || envKey), tmdb_key_hint: key ? key.slice(0, 4) + "…" : envKey ? "(from server secret)" : null });
+  const canEdit = canManageKey(c.env, await sessionEmail(c.env, c.get("userId")));
+  return c.json({ has_tmdb_key: !!(key || envKey), can_edit: canEdit, tmdb_key_hint: key ? key.slice(0, 4) + "…" : envKey ? "(server secret)" : null });
 });
 
+// The TMDB key is a single platform-wide key (admin on invite-only instances).
 app.post("/api/settings", requireAuth, async (c) => {
+  if (!canManageKey(c.env, await sessionEmail(c.env, c.get("userId")))) return c.json({ error: "admin only" }, 403);
   const { tmdb_key } = await c.req.json<{ tmdb_key?: string }>();
   if (typeof tmdb_key !== "string") return c.json({ error: "tmdb_key required" }, 400);
   await setSetting(c.env, "tmdb_key", tmdb_key.trim());
-  // Validate against TMDB so the user gets immediate feedback.
   const test = await search(tmdb_key.trim(), "breaking bad");
   return c.json({ ok: true, valid: test.length > 0 });
 });

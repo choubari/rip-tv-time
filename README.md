@@ -70,6 +70,30 @@ npm run deploy
 
 Cloudflare's free tier (Workers + D1) comfortably hosts a personal instance.
 
+### Access control (public deploys)
+
+By default the app is **open** (anyone can sign in — good for a private personal
+instance). To run a **public, invite-only** instance:
+
+```bash
+npx wrangler secret put ADMIN_EMAIL     # you — manage invites + the TMDB key
+# set INVITE_ONLY = "true" in wrangler.jsonc "vars"
+npx wrangler secret put DEMO_EMAIL       # optional: enables the "Try the demo" button
+```
+
+- **Invite-only**: only your `ADMIN_EMAIL`, the `DEMO_EMAIL`, and emails you add
+  under **Profile → Invited users** can sign in.
+- **Admin-managed TMDB key**: on an invite-only instance the TMDB key is set once
+  by the admin and shared by everyone (users never enter it). On an open instance
+  the single user manages their own key.
+- **Demo**: seed the demo account by signing in as `DEMO_EMAIL` once and importing
+  a sample export; visitors then get a one-click read-through via "Try the demo".
+
+### Keeping data fresh
+
+A Cron Trigger (`wrangler.jsonc` → `triggers.crons`, 3×/day) refreshes posters and
+moves finished shows back to **Watching** when TMDB reports newly-aired episodes.
+
 ## Your data & how it maps
 
 The importer prefers the richer JSON export (`tv-time-export.zip`) and merges
