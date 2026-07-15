@@ -161,15 +161,16 @@ export function Detail() {
           {t.tracked && (
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
               {/* Watching / paused / finished / not-started are derived from your
-                  progress automatically. You can only manually set these two. */}
-              <button
-                className={`chip ${t.status === "watch_next" ? "active" : ""}`}
-                onClick={() => patch({ status: t.status === "watch_next" ? "watching" : "watch_next" })}
-              >{STATUS_LABEL.watch_next}</button>
-              <button
-                className={`chip ${t.status === "stopped" ? "active" : ""}`}
-                onClick={() => patch({ status: t.status === "stopped" ? "watching" : "stopped" })}
-              >{STATUS_LABEL.stopped}</button>
+                  progress automatically. The user only sets these overrides —
+                  with explicit verbs (Stop / Resume), not toggles. */}
+              {t.status === "stopped" || t.status === "watch_next" ? (
+                <button className="chip active" onClick={() => patch({ status: "watching" })}>▶ Resume watching</button>
+              ) : (
+                <>
+                  <button className="chip" onClick={() => patch({ status: "watch_next" })}>+ Watch later</button>
+                  <button className="chip" onClick={() => patch({ status: "stopped" })}>■ Stop watching</button>
+                </>
+              )}
               <div style={{ flex: 1 }} />
               <button className="btn ghost" style={{ color: t.is_favorite ? "var(--primary)" : undefined }} onClick={() => patch({ is_favorite: !t.is_favorite })}>
                 <StarIcon filled={t.is_favorite} />
