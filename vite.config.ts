@@ -13,6 +13,13 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
+      workbox: {
+        // SPA: serve index.html for client-side routes (e.g. /show/3) so a reload
+        // doesn't fail. Never intercept API calls.
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/api\//],
+        cleanupOutdatedCaches: true,
+      },
       manifest: {
         name: "rip tv time",
         short_name: "rip tv time",
