@@ -37,13 +37,13 @@ export const api = {
 
   library: (kind?: string) => req<LibraryItem[]>(`/api/library${kind ? `?kind=${kind}` : ""}`),
   stats: () => req<Stats>("/api/stats"),
-  title: (id: string) => req<TitleDetail>(`/api/title/${encodeURIComponent(id)}`),
-  seasons: (id: string) => req<{ seasons: SeasonData[] }>(`/api/title/${encodeURIComponent(id)}/seasons`),
+  title: (ref: string | number) => req<TitleDetail>(`/api/t/${ref}`),
+  seasons: (ref: string | number) => req<{ seasons: SeasonData[] }>(`/api/t/${ref}/seasons`),
   search: (q: string) => req<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
 
   lists: () => req<ListSummary[]>("/api/lists"),
-  ensure: (kind: "show" | "movie", tmdb_id: number) => req<{ id: string }>("/api/title/ensure", json({ kind, tmdb_id })),
-  add: (kind: "show" | "movie", tmdb_id: number, status?: string) => req<{ id: string }>("/api/library", json({ kind, tmdb_id, status })),
+  ensure: (kind: "show" | "movie", tmdb_id: number) => req<{ id: string; ref: number }>("/api/title/ensure", json({ kind, tmdb_id })),
+  add: (kind: "show" | "movie", tmdb_id: number, status?: string) => req<{ id: string; ref: number }>("/api/library", json({ kind, tmdb_id, status })),
   update: (id: string, patch: Record<string, unknown>) => req(`/api/library/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }),
   toggleEpisode: (id: string, season: number, episode: number, watched: boolean) =>
     req(`/api/title/${encodeURIComponent(id)}/episode`, json({ season, episode, watched })),

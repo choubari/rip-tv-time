@@ -10,7 +10,7 @@ export function Poster({ item, showProgress = false }: { item: LibraryItem; show
       ? Math.min(100, Math.round((item.episodes_watched / item.total_episodes) * 100))
       : 0;
   return (
-    <Link className="poster" to={`/title/${encodeURIComponent(item.id)}`}>
+    <Link className="poster" to={`/${item.kind}/${item.ref}`}>
       <div className="art">
         {item.poster_path ? (
           <img src={TMDB_IMG(item.poster_path, "w342")} alt={item.name} loading="lazy" />

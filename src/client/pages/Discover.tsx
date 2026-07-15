@@ -23,8 +23,8 @@ export function Discover() {
   async function open(r: SearchResult) {
     setOpening(r.tmdb_id);
     try {
-      const { id } = await api.ensure(r.kind, r.tmdb_id);
-      nav(`/title/${encodeURIComponent(id)}`);
+      const { ref } = await api.ensure(r.kind, r.tmdb_id);
+      nav(`/${r.kind}/${ref}`);
     } finally { setOpening(null); }
   }
 

@@ -8,21 +8,24 @@ import { StarIcon, CheckIcon } from "../components/icons";
 import { Loading } from "../components/Loading";
 
 export function Detail() {
-  const { id = "" } = useParams();
+  const { ref = "" } = useParams();
   const [t, setT] = useState<TitleDetail | null>(null);
   const [seasons, setSeasons] = useState<SeasonData[] | null>(null);
   const [watched, setWatched] = useState<Set<string>>(new Set());
+  const [watchedDates, setWatchedDates] = useState<Map<string, string | null>>(new Map());
   const [tab, setTab] = useState<"about" | "episodes">("episodes");
   const [modalEp, setModalEp] = useState<{ season: number; ep: SeasonData["episodes"][number] } | null>(null);
   const nav = useNavigate();
+  const id = t?.id ?? "";
 
   useEffect(() => {
-    api.title(id).then((d) => {
+    api.title(ref).then((d) => {
       setT(d);
       setWatched(new Set(d.episodes.map((e) => `${e.season}:${e.episode}`)));
-      if (d.kind === "show") api.seasons(id).then((r) => setSeasons(r.seasons)).catch(() => setSeasons([]));
+      setWatchedDates(new Map(d.episodes.map((e) => [`${e.season}:${e.episode}`, e.watched_at])));
+      if (d.kind === "show") api.seasons(ref).then((r) => setSeasons(r.seasons)).catch(() => setSeasons([]));
     }).catch(() => setT(null));
-  }, [id]);
+  }, [ref]);
 
   // Merge TMDB's episode list with the episodes we know were watched, so every
   // watched episode always shows even when TMDB is missing/incomplete (e.g. a
@@ -45,7 +48,7 @@ export function Detail() {
       }
     };
     for (const s of seasons ?? []) for (const e of s.episodes) put(s.season, e);
-    for (const e of t.episodes) put(e.season, { episode: e.episode, name: "", air_date: e.watched_at, runtime: null, still: null });
+    for (const e of t.episodes) put(e.season, { episode: e.episode, name: "", air_date: null, runtime: null, still: null });
     return [...bySeason.entries()]
       .map(([season, m]) => ({ season, name: seasons?.find((s) => s.season === season)?.name ?? `Season ${season}`, episodes: [...m.values()].sort((a, b) => a.episode - b.episode) }))
       .sort((a, b) => a.season - b.season);
@@ -59,6 +62,7 @@ export function Detail() {
   async function setEp(season: number, episode: number, on: boolean) {
     const key = `${season}:${episode}`;
     setWatched((cur) => { const n = new Set(cur); on ? n.add(key) : n.delete(key); return n; });
+    setWatchedDates((cur) => { const n = new Map(cur); on ? n.set(key, new Date().toISOString()) : n.delete(key); return n; });
     await api.toggleEpisode(id, season, episode, on);
   }
   async function setSeasonAll(s: SeasonData, on: boolean) {
@@ -154,6 +158,7 @@ export function Detail() {
         <EpisodeModal
           show={t.name} season={modalEp.season} ep={modalEp.ep}
           watched={watched.has(`${modalEp.season}:${modalEp.ep.episode}`)}
+          watchedAt={watchedDates.get(`${modalEp.season}:${modalEp.ep.episode}`) ?? null}
           onToggle={(on) => { setEp(modalEp.season, modalEp.ep.episode, on); }}
           onClose={() => setModalEp(null)}
         />
@@ -162,10 +167,11 @@ export function Detail() {
   );
 }
 
-function EpisodeModal({ show, season, ep, watched, onToggle, onClose }: {
-  show: string; season: number; ep: SeasonData["episodes"][number]; watched: boolean;
+function EpisodeModal({ show, season, ep, watched, watchedAt, onToggle, onClose }: {
+  show: string; season: number; ep: SeasonData["episodes"][number]; watched: boolean; watchedAt: string | null;
   onToggle: (on: boolean) => void; onClose: () => void;
 }) {
+  const fmt = (d: string) => new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -174,9 +180,11 @@ function EpisodeModal({ show, season, ep, watched, onToggle, onClose }: {
         <div style={{ padding: 16 }}>
           <div className="muted" style={{ fontSize: 12, fontWeight: 700 }}>{show} · S{pad(season)}E{pad(ep.episode)}</div>
           <h2 style={{ margin: "4px 0 8px", fontSize: 19 }}>{ep.name || `Episode ${ep.episode}`}</h2>
-          <div className="muted" style={{ fontSize: 13, display: "flex", gap: 14, flexWrap: "wrap" }}>
-            {ep.air_date && <span>Aired {new Date(ep.air_date).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</span>}
-            {ep.runtime ? <span>{ep.runtime} min</span> : null}
+          <div className="muted" style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+            {ep.air_date && <span>📅 Aired {fmt(ep.air_date)}</span>}
+            {watched && watchedAt && <span style={{ color: "#21d07a" }}>✓ Watched {fmt(watchedAt)}</span>}
+            {watched && !watchedAt && <span style={{ color: "#21d07a" }}>✓ Watched</span>}
+            {ep.runtime ? <span>⏱ {ep.runtime} min</span> : null}
           </div>
           <button className="btn" style={{ marginTop: 16, width: "100%", background: watched ? "var(--bg-elev-2)" : "var(--primary)" }} onClick={() => { onToggle(!watched); onClose(); }}>
             {watched ? "Mark as unwatched" : "Mark as watched"}

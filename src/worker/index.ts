@@ -4,7 +4,7 @@ import { createMagicToken, verifyMagicToken, setSessionCookie, clearSession, req
 import { sendMagicLink } from "./email";
 import { parseZips } from "./import";
 import { search, fetchSeasons } from "./tmdb";
-import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey, getLists, ensureTitle } from "./store";
+import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey, getLists, ensureTitle, refOf } from "./store";
 import type { Status } from "../../shared/types";
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -72,16 +72,18 @@ app.get("/api/lists", requireAuth, async (c) => c.json(await getLists(c.env, c.g
 // Ensure a searched title exists in the DB so its detail page can open (without tracking it).
 app.post("/api/title/ensure", requireAuth, async (c) => {
   const { kind, tmdb_id } = await c.req.json<{ kind: "show" | "movie"; tmdb_id: number }>();
-  return c.json({ id: await ensureTitle(c.env, kind, tmdb_id) });
+  const id = await ensureTitle(c.env, kind, tmdb_id);
+  return c.json({ id, ref: await refOf(c.env, id) });
 });
 
-app.get("/api/title/:id", requireAuth, async (c) => {
-  const t = await getTitle(c.env, c.get("userId"), c.req.param("id")!);
+// Clean numeric refs power the /show/:ref and /movie/:ref URLs.
+app.get("/api/t/:ref", requireAuth, async (c) => {
+  const t = await getTitle(c.env, c.get("userId"), c.req.param("ref")!, true);
   return t ? c.json(t) : c.json({ error: "not found" }, 404);
 });
 
-app.get("/api/title/:id/seasons", requireAuth, async (c) => {
-  const t = await getTitle(c.env, c.get("userId"), c.req.param("id")!);
+app.get("/api/t/:ref/seasons", requireAuth, async (c) => {
+  const t = await getTitle(c.env, c.get("userId"), c.req.param("ref")!, true);
   if (!t || t.kind !== "show" || !t.tmdb_id) return c.json({ seasons: [] });
   return c.json({ seasons: await fetchSeasons(await tmdbKey(c.env), t.tmdb_id) });
 });
@@ -111,7 +113,7 @@ app.post("/api/settings", requireAuth, async (c) => {
 app.post("/api/library", requireAuth, async (c) => {
   const { kind, tmdb_id, status } = await c.req.json<{ kind: "show" | "movie"; tmdb_id: number; status?: Status }>();
   const id = await addTitle(c.env, c.get("userId"), kind, tmdb_id, status ?? (kind === "movie" ? "watch_next" : "not_started"));
-  return c.json({ ok: true, id });
+  return c.json({ ok: true, id, ref: await refOf(c.env, id) });
 });
 
 app.patch("/api/library/:id", requireAuth, async (c) => {

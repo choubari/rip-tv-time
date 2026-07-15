@@ -39,7 +39,8 @@ export default function App() {
         <Route path="/explore" element={<Discover />} />
         <Route path="/profile" element={<Profile user={user} onChange={refresh} />} />
         <Route path="/import" element={<ImportPage onDone={refresh} />} />
-        <Route path="/title/:id" element={<Detail />} />
+        <Route path="/show/:ref" element={<Detail />} />
+        <Route path="/movie/:ref" element={<Detail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <BottomNav />

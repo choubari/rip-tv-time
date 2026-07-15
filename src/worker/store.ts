@@ -51,14 +51,16 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
           // On re-import, force shows to re-resolve their episode total (so the
           // specials-excluding fix and newly-aired episodes are picked up) while
           // keeping the existing poster until the refresh lands.
-          `INSERT INTO titles (id, kind, tvdb_id, imdb_id, name, runtime) VALUES (?, ?, ?, ?, ?, ?)
+          // total_episodes comes from the export (authoritative — TMDB counts are
+          // often wrong, e.g. specials or wrong ID). Poster is cleared to refetch.
+          `INSERT INTO titles (id, kind, tvdb_id, imdb_id, name, runtime, total_episodes) VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              name = excluded.name,
              runtime = COALESCE(titles.runtime, excluded.runtime),
-             total_episodes = NULL,
+             total_episodes = COALESCE(excluded.total_episodes, titles.total_episodes),
              poster_path = NULL, backdrop_path = NULL,
              resolve_failed = 0`,
-        ).bind(id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime),
+        ).bind(id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime, t.total_episodes ?? null),
       );
       stmts.push(
         env.DB.prepare(
@@ -95,6 +97,12 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
   return { titles: data.titles.length, episodes };
 }
 
+/** The clean numeric ref (rowid) for a title's string id. */
+export async function refOf(env: Env, titleId: string): Promise<number> {
+  const r = await env.DB.prepare("SELECT rowid AS ref FROM titles WHERE id = ?").bind(titleId).first<{ ref: number }>();
+  return r?.ref ?? 0;
+}
+
 export async function getSetting(env: Env, key: string): Promise<string | null> {
   const r = await env.DB.prepare("SELECT value FROM app_settings WHERE key = ?").bind(key).first<{ value: string }>();
   return r?.value ?? null;
@@ -126,8 +134,8 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
     const meta = await resolveMeta(key, row.kind, row);
     if (meta && meta.tmdb_id > 0) {
       await env.DB.prepare(
-        // Keep the real runtime we already have (from GDPR) unless TMDB gives one.
-        `UPDATE titles SET tmdb_id=?, name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(?, runtime), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
+        // Keep the export's runtime + episode total (both more reliable than TMDB).
+        `UPDATE titles SET tmdb_id=?, name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
       ).bind(meta.tmdb_id, meta.name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
       resolved++;
     } else {
@@ -172,7 +180,7 @@ async function dedupeByTmdb(env: Env): Promise<void> {
 
 function rowToMeta(r: any): TitleMeta {
   return {
-    id: r.id, kind: r.kind, tmdb_id: r.tmdb_id === -1 ? null : r.tmdb_id, imdb_id: r.imdb_id, tvdb_id: r.tvdb_id,
+    id: r.id, ref: r.ref ?? r.rowid ?? 0, kind: r.kind, tmdb_id: r.tmdb_id === -1 ? null : r.tmdb_id, imdb_id: r.imdb_id, tvdb_id: r.tvdb_id,
     name: r.name, overview: r.overview, poster_path: r.poster_path, backdrop_path: r.backdrop_path,
     release_date: r.release_date, runtime: r.runtime, total_episodes: r.total_episodes,
     genres: r.genres ? JSON.parse(r.genres) : [],
@@ -196,7 +204,7 @@ function rowToItem(r: any): LibraryItem {
 export async function getLibrary(env: Env, userId: string, kind?: string): Promise<LibraryItem[]> {
   const where = kind ? "AND l.kind = ?" : "";
   const stmt = env.DB.prepare(
-    `SELECT t.*, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at,
+    `SELECT t.*, t.rowid AS ref, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at,
             (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0) AS episodes_watched
      FROM library l JOIN titles t ON t.id = l.title_id
      WHERE l.user_id = ? ${where}
@@ -211,7 +219,7 @@ export async function getLists(env: Env, userId: string): Promise<import("../../
   const out: import("../../shared/types").ListSummary[] = [];
   for (const l of lists) {
     const { results } = await env.DB.prepare(
-      `SELECT t.*, li.ordering, lib.status, lib.is_favorite, lib.rating, lib.added_at, lib.last_watched_at,
+      `SELECT t.*, t.rowid AS ref, li.ordering, lib.status, lib.is_favorite, lib.rating, lib.added_at, lib.last_watched_at,
               (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = ? AND w.title_id = t.id AND w.season > 0) AS episodes_watched
        FROM list_items li JOIN titles t ON t.id = li.title_id
        LEFT JOIN library lib ON lib.title_id = t.id AND lib.user_id = ?
@@ -223,17 +231,20 @@ export async function getLists(env: Env, userId: string): Promise<import("../../
   return out;
 }
 
-export async function getTitle(env: Env, userId: string, titleId: string): Promise<(LibraryItem & { episodes: any[] }) | null> {
+export async function getTitle(env: Env, userId: string, titleId: string, byRef = false): Promise<(LibraryItem & { episodes: any[] }) | null> {
   const r = await env.DB.prepare(
-    `SELECT t.*, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at
+    `SELECT t.*, t.rowid AS ref, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at
      FROM titles t LEFT JOIN library l ON l.title_id = t.id AND l.user_id = ?
-     WHERE t.id = ?`,
+     WHERE ${byRef ? "t.rowid" : "t.id"} = ?`,
   ).bind(userId, titleId).first<any>();
   if (!r) return null;
+  titleId = r.id; // normalize to the string id for the episodes query below
   const { results: episodes } = await env.DB.prepare(
     "SELECT season, episode, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
-  ).bind(userId, titleId).all();
-  return { ...rowToMeta(r), status: (r.status ?? "not_started") as Status, is_favorite: !!r.is_favorite, rating: r.rating, added_at: r.added_at, last_watched_at: r.last_watched_at, episodes_watched: episodes.length, episodes };
+  ).bind(userId, titleId).all<{ season: number }>();
+  const regularWatched = episodes.filter((e) => e.season > 0).length;
+  const item = rowToItem({ ...r, episodes_watched: regularWatched });
+  return { ...item, episodes };
 }
 
 export async function getStats(env: Env, userId: string): Promise<Stats> {

@@ -99,6 +99,7 @@ export function parseExport(files: FileMap): ParsedImport {
       }
       if (t.last_watched_at && (!existing.last_watched_at || t.last_watched_at > existing.last_watched_at)) existing.last_watched_at = t.last_watched_at;
       if (existing.runtime == null) existing.runtime = t.runtime;
+      if (existing.total_episodes == null && t.total_episodes != null) existing.total_episodes = t.total_episodes;
       if (t.status === "finished" && existing.status === "watch_next") existing.status = "finished";
       return existing;
     }
@@ -112,7 +113,9 @@ export function parseExport(files: FileMap): ParsedImport {
     const { tvdb, imdb } = pickId(s.id);
     const eps: ParsedTitle["watched_episodes"] = [];
     let last: string | null = null;
+    let totalRegular = 0; // full episode count (season > 0) from the export itself
     for (const season of s.seasons ?? []) {
+      if (season.number > 0) totalRegular += (season.episodes ?? []).length;
       for (const ep of season.episodes ?? []) {
         if (ep.is_watched) {
           const w = toIso(ep.watched_at);
@@ -124,7 +127,7 @@ export function parseExport(files: FileMap): ParsedImport {
     return {
       kind: "show", uuid: s.uuid ?? null, tvdb_id: tvdb, imdb_id: imdb, name: s.title ?? "Untitled",
       status: SHOW_STATUS[s.status] ?? (eps.length ? "watching" : "not_started"),
-      is_favorite: favorite, rating: s.rating ?? null, runtime: null,
+      is_favorite: favorite, rating: s.rating ?? null, runtime: null, total_episodes: totalRegular || null,
       added_at: toIso(s.created_at), last_watched_at: last, watched_episodes: eps,
     };
   };
@@ -134,7 +137,9 @@ export function parseExport(files: FileMap): ParsedImport {
     return {
       kind: "movie", uuid: m.uuid ?? null, tvdb_id: tvdb, imdb_id: imdb, name: m.title ?? "Untitled",
       status: m.is_watched ? "finished" : "watch_next", is_favorite: false, rating: m.rating ?? null,
-      runtime: m.runtime ?? null, added_at: toIso(m.created_at ?? m.added_at), last_watched_at: toIso(m.watched_at), watched_episodes: [],
+      // `added_at` is when the movie was added to the watchlist (real order);
+      // `created_at` on list items is just the export-render time. Prefer added_at.
+      runtime: m.runtime ?? null, added_at: toIso(m.added_at ?? m.created_at), last_watched_at: toIso(m.watched_at), watched_episodes: [],
     };
   };
 

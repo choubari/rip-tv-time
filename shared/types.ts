@@ -57,6 +57,7 @@ export function effectiveStatus(item: {
 
 export interface TitleMeta {
   id: string;
+  ref: number; // stable numeric id for clean URLs (/show/:ref, /movie/:ref)
   kind: Kind;
   tmdb_id: number | null;
   imdb_id: string | null;
@@ -109,6 +110,7 @@ export interface ParsedTitle {
   is_favorite: boolean;
   rating: number | null;
   runtime: number | null; // movie runtime in minutes (shows: null)
+  total_episodes?: number | null; // full episode count from the export (shows)
   added_at: string | null;
   last_watched_at: string | null;
   watched_episodes: { season: number; episode: number; watched_at: string | null; rating: number | null; runtime: number | null }[];
