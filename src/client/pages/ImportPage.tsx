@@ -2,12 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 
-type Phase = "idle" | "uploading" | "resolving" | "done";
+type Phase = "idle" | "uploading" | "done";
 
 export function ImportPage({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [msg, setMsg] = useState("");
-  const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,22 +23,11 @@ export function ImportPage({ onDone }: { onDone: () => void }) {
     setMsg(`Reading ${zips.map((z) => z.name).join(", ")}…`);
     try {
       const res = await api.importZips(zips);
-      setMsg(`Imported ${res.titles} titles and ${res.episodes} watched episodes. Fetching posters…`);
-      setPhase("resolving");
-
-      // Lazily resolve TMDB metadata/posters in batches.
-      let remaining = Infinity;
-      let total = 0;
-      while (remaining > 0) {
-        const r = await api.resolve(40);
-        if (total === 0) total = r.resolved + r.remaining;
-        remaining = r.remaining;
-        setProgress(total ? Math.round(((total - remaining) / total) * 100) : 100);
-      }
       setPhase("done");
-      setMsg("All done!");
+      // Poster fetching runs app-wide in the background (see App). No need to wait here.
+      setMsg(`Imported ${res.titles} titles and ${res.episodes} watched episodes. Posters are loading in the background — you can start browsing.`);
       onDone();
-      setTimeout(() => nav("/"), 800);
+      setTimeout(() => nav("/"), 1400);
     } catch (e: any) {
       setPhase("idle");
       setMsg(e.message || "Import failed");
@@ -90,14 +78,17 @@ export function ImportPage({ onDone }: { onDone: () => void }) {
           </div>
         ) : null}
 
-        {phase === "resolving" && (
-          <div style={{ marginTop: 24 }}>
-            <div className="progress-line"><span style={{ width: `${progress}%` }} /></div>
-            <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>Fetching posters… {progress}%</p>
-          </div>
-        )}
-
         {msg && <p style={{ marginTop: 16 }}>{msg}</p>}
+
+        <div style={{ marginTop: 24, fontSize: 13 }} className="muted">
+          <strong>Where to get the exports:</strong>
+          <ul style={{ paddingLeft: 18, marginTop: 6, lineHeight: 1.6 }}>
+            <li><code>tv-time-export.zip</code> — generate it with the{" "}
+              <a style={{ color: "var(--primary)" }} href="https://github.com/hobo-Ware/tv-time-liberator" target="_blank" rel="noreferrer">tv-time-liberator</a> tool.
+            </li>
+            <li><code>gdpr-data.zip</code> — request it from TV Time (Settings → your account data / GDPR export).</li>
+          </ul>
+        </div>
       </div>
     </>
   );
