@@ -135,13 +135,18 @@ app.get("/api/search", requireAuth, async (c) => {
   const q = c.req.query("q");
   if (!q) return c.json([]);
   const results = await search(await tmdbKey(c.env), q);
-  // Annotate results already in the user's library with their ref (so the UI can
-  // link straight to the tracked title instead of creating a duplicate).
+  // Annotate results already in the user's library with their ref + progress (so
+  // the UI links straight to the tracked title and shows a progress bar).
   const { results: mine } = await c.env.DB.prepare(
-    `SELECT t.kind, t.tmdb_id, t.rowid AS ref FROM library l JOIN titles t ON t.id = l.title_id WHERE l.user_id = ? AND t.tmdb_id IS NOT NULL`,
-  ).bind(c.get("userId")).all<{ kind: string; tmdb_id: number; ref: number }>();
-  const byId = new Map(mine.map((m) => [`${m.kind}:${m.tmdb_id}`, m.ref]));
-  return c.json(results.map((r) => ({ ...r, tracked_ref: byId.get(`${r.kind}:${r.tmdb_id}`) ?? null })));
+    `SELECT t.kind, t.tmdb_id, t.rowid AS ref, l.status, t.total_episodes,
+            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0 AND w.watched = 1) AS watched
+     FROM library l JOIN titles t ON t.id = l.title_id WHERE l.user_id = ? AND t.tmdb_id IS NOT NULL`,
+  ).bind(c.get("userId")).all<{ kind: string; tmdb_id: number; ref: number; status: string; total_episodes: number | null; watched: number }>();
+  const byId = new Map(mine.map((m) => [`${m.kind}:${m.tmdb_id}`, m]));
+  return c.json(results.map((r) => {
+    const m = byId.get(`${r.kind}:${r.tmdb_id}`);
+    return { ...r, tracked_ref: m?.ref ?? null, status: m?.status ?? null, watched: m?.watched ?? 0, total_episodes: m?.total_episodes ?? null };
+  }));
 });
 
 // TMDB key management (entered in the UI so no file editing is needed).

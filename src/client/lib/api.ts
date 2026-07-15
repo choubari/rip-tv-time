@@ -17,7 +17,7 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export interface TitleDetail extends LibraryItem {
-  episodes: { season: number; episode: number; watched_at: string | null; rating: number | null }[];
+  episodes: { season: number; episode: number; watched: boolean; watched_at: string | null; rating: number | null }[];
 }
 
 export const api = {
@@ -43,7 +43,7 @@ export const api = {
   stats: () => req<Stats>("/api/stats"),
   title: (ref: string | number) => req<TitleDetail>(`/api/t/${ref}`),
   seasons: (ref: string | number) => req<{ seasons: SeasonData[] }>(`/api/t/${ref}/seasons`),
-  search: (q: string) => req<(SearchResult & { tracked_ref: number | null })[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  search: (q: string) => req<(SearchResult & { tracked_ref: number | null; status: string | null; watched: number; total_episodes: number | null })[]>(`/api/search?q=${encodeURIComponent(q)}`),
 
   lists: () => req<ListSummary[]>("/api/lists"),
   unmatched: () => req<{ ref: number; name: string; kind: string }[]>("/api/unmatched"),

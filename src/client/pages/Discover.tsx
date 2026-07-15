@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { SearchResult } from "../../worker/tmdb";
-import { TMDB_IMG } from "../../../shared/types";
+import { TMDB_IMG, STATUS_COLOR, type Status } from "../../../shared/types";
 import { api } from "../lib/api";
 
 export function Discover() {
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<(SearchResult & { tracked_ref: number | null })[]>([]);
+  type Row = SearchResult & { tracked_ref: number | null; status: string | null; watched: number; total_episodes: number | null };
+  const [results, setResults] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState<number | null>(null);
   const nav = useNavigate();
@@ -43,6 +44,11 @@ export function Discover() {
             <div className="art">
               {r.poster_path ? <img src={TMDB_IMG(r.poster_path)} alt={r.name} loading="lazy" /> : <div className="placeholder">{r.name}</div>}
               {r.tracked_ref && <span className="badge" style={{ background: "var(--primary)" }}>Tracked</span>}
+              {r.tracked_ref && r.status && (
+                <div className="status-bar" style={{ background: "rgba(255,255,255,.18)" }}>
+                  <span style={{ background: STATUS_COLOR[r.status as Status], width: `${r.status === "watching" || r.status === "paused" ? (r.total_episodes ? Math.min(100, Math.round((r.watched / r.total_episodes) * 100)) : 100) : 100}%` }} />
+                </div>
+              )}
               {opening === r.tmdb_id && <div className="placeholder" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)" }}><div className="spinner" /></div>}
             </div>
             <div className="title">{r.name}</div>

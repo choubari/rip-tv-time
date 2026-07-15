@@ -174,8 +174,10 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
       await env.DB.prepare(
         // Keep the export's own name, runtime + episode total (all more reliable
         // than TMDB, which e.g. drops the "(2027)" that distinguishes entries).
-        `UPDATE titles SET tmdb_id=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
-      ).bind(meta.tmdb_id, meta.original_name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
+        // Mark resolve_failed=1 when matched but TMDB has no poster, so a
+        // poster-less-but-resolved title isn't re-selected forever.
+        `UPDATE titles SET tmdb_id=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=?, updated_at=datetime('now') WHERE id=?`,
+      ).bind(meta.tmdb_id, meta.original_name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), meta.poster_path ? 0 : 1, row.id).run();
       resolved++;
     } else {
       // No trustworthy TMDB match — keep the export name, don't retry, no wrong art.
@@ -183,7 +185,7 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
     }
   }
   const rem = await env.DB.prepare("SELECT COUNT(*) as c FROM titles WHERE resolve_failed = 0 AND poster_path IS NULL").first<{ c: number }>();
-  if (rem?.c === 0) await dedupeByTmdb(env);
+  await dedupeByTmdb(env); // always collapse tmdb_id duplicates (e.g. movie listed twice)
   return { resolved, remaining: rem?.c ?? 0 };
 }
 

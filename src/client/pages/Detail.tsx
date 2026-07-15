@@ -14,6 +14,7 @@ import { Loading } from "../components/Loading";
 export function Detail() {
   const { ref = "" } = useParams();
   const [t, setT] = useState<TitleDetail | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [seasons, setSeasons] = useState<SeasonData[] | null>(null);
   const [watched, setWatched] = useState<Set<string>>(new Set());
   const [watchedDates, setWatchedDates] = useState<Map<string, string | null>>(new Map());
@@ -23,12 +24,14 @@ export function Detail() {
   const id = t?.id ?? "";
 
   useEffect(() => {
+    setNotFound(false); setT(null);
     api.title(ref).then((d) => {
       setT(d);
-      setWatched(new Set(d.episodes.map((e) => `${e.season}:${e.episode}`)));
+      // Only episodes actually watched go in the watched set (others are shown unticked).
+      setWatched(new Set(d.episodes.filter((e) => e.watched).map((e) => `${e.season}:${e.episode}`)));
       setWatchedDates(new Map(d.episodes.map((e) => [`${e.season}:${e.episode}`, e.watched_at])));
       if (d.kind === "show") api.seasons(ref).then((r) => setSeasons(r.seasons)).catch(() => setSeasons([]));
-    }).catch(() => setT(null));
+    }).catch(() => setNotFound(true));
   }, [ref]);
 
   // The export's season/episode structure (t.episodes) is authoritative — it's
@@ -82,6 +85,12 @@ export function Detail() {
     return out;
   }, [seasons, t]);
 
+  if (notFound) return (
+    <>
+      <div className="topbar"><button onClick={() => nav(-1)} style={{ background: "none", border: "none", color: "var(--text)", fontSize: 22 }}>‹</button><h1 style={{ fontSize: 18 }}>Not found</h1></div>
+      <div className="empty">This title doesn't exist (or was removed). <br /><button className="btn ghost" style={{ marginTop: 12 }} onClick={() => nav("/")}>Go home</button></div>
+    </>
+  );
   if (!t) return <Loading />;
   const isShow = t.kind === "show";
 
