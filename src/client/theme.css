@@ -158,6 +158,15 @@ img { display: block; }
 .continue-card { display: flex; align-items: center; gap: 12px; background: var(--bg-elev); border-radius: 12px; padding: 10px; margin: 8px 16px; }
 .score-badge { display: inline-flex; align-items: center; gap: 3px; background: var(--primary); color: #fff; font-weight: 800; font-size: 12px; padding: 3px 7px; border-radius: 6px; }
 
+/* Episode modal */
+.modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.7); display: flex; align-items: flex-end; justify-content: center; padding: 0; }
+@media (min-width: 560px) { .modal-backdrop { align-items: center; padding: 24px; } }
+.modal { position: relative; background: var(--bg-elev); width: 100%; max-width: 460px; border-radius: 16px 16px 0 0; overflow: hidden; animation: slideup .2s ease; }
+@media (min-width: 560px) { .modal { border-radius: 16px; } }
+@keyframes slideup { from { transform: translateY(30px); opacity: .6; } }
+.modal-still { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+.modal-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 15px; }
+
 .empty { text-align: center; color: var(--text-dim); padding: 60px 24px; }
 .spinner { width: 22px; height: 22px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

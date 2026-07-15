@@ -92,7 +92,9 @@ function namesMatch(a: string, b: string): boolean {
   const setA = new Set(ta), setB = new Set(tb);
   let inter = 0;
   for (const t of setA) if (setB.has(t)) inter++;
-  return inter / (setA.size + setB.size - inter) >= 0.5; // Jaccard over union
+  // Jaccard over union. 0.6 so a single shared common word (e.g. "Inside" vs
+  // "Vandaag Inside", "Cream" vs "Ice Cream Girls") does NOT count as a match.
+  return inter / (setA.size + setB.size - inter) >= 0.6;
 }
 
 /**

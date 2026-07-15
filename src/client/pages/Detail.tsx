@@ -13,6 +13,7 @@ export function Detail() {
   const [seasons, setSeasons] = useState<SeasonData[] | null>(null);
   const [watched, setWatched] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<"about" | "episodes">("episodes");
+  const [modalEp, setModalEp] = useState<{ season: number; ep: SeasonData["episodes"][number] } | null>(null);
   const nav = useNavigate();
 
   useEffect(() => {
@@ -23,18 +24,31 @@ export function Detail() {
     }).catch(() => setT(null));
   }, [id]);
 
-  // Full episode list from TMDB when available; else fall back to what we know was
-  // watched. Declared before any early return so hook order stays stable.
+  // Merge TMDB's episode list with the episodes we know were watched, so every
+  // watched episode always shows even when TMDB is missing/incomplete (e.g. a
+  // local show TMDB thinks has 1 episode). Declared before any early return so
+  // hook order stays stable.
   const showSeasons: SeasonData[] = useMemo(() => {
-    if (seasons && seasons.length) return seasons;
     if (!t) return [];
-    const bySeason = new Map<number, SeasonData>();
-    for (const e of t.episodes) {
-      if (e.season <= 0) continue; // ignore specials
-      if (!bySeason.has(e.season)) bySeason.set(e.season, { season: e.season, name: `Season ${e.season}`, episodes: [] });
-      bySeason.get(e.season)!.episodes.push({ episode: e.episode, name: "", air_date: e.watched_at, runtime: null, still: null });
-    }
-    return [...bySeason.values()].map((s) => ({ ...s, episodes: s.episodes.sort((a, b) => a.episode - b.episode) })).sort((a, b) => a.season - b.season);
+    const bySeason = new Map<number, Map<number, SeasonData["episodes"][number]>>();
+    const put = (season: number, ep: SeasonData["episodes"][number]) => {
+      if (season <= 0) return; // ignore specials
+      if (!bySeason.has(season)) bySeason.set(season, new Map());
+      const m = bySeason.get(season)!;
+      const ex = m.get(ep.episode);
+      if (!ex) m.set(ep.episode, ep);
+      else { // fill gaps from whichever source has the detail
+        if (!ex.name && ep.name) ex.name = ep.name;
+        if (!ex.air_date && ep.air_date) ex.air_date = ep.air_date;
+        if (ex.still == null && ep.still) ex.still = ep.still;
+        if (ex.runtime == null && ep.runtime) ex.runtime = ep.runtime;
+      }
+    };
+    for (const s of seasons ?? []) for (const e of s.episodes) put(s.season, e);
+    for (const e of t.episodes) put(e.season, { episode: e.episode, name: "", air_date: e.watched_at, runtime: null, still: null });
+    return [...bySeason.entries()]
+      .map(([season, m]) => ({ season, name: seasons?.find((s) => s.season === season)?.name ?? `Season ${season}`, episodes: [...m.values()].sort((a, b) => a.episode - b.episode) }))
+      .sort((a, b) => a.season - b.season);
   }, [seasons, t]);
 
   if (!t) return <Loading />;
@@ -131,18 +145,53 @@ export function Detail() {
           {showSeasons.map((s) => {
             const w = s.episodes.filter((e) => watched.has(`${s.season}:${e.episode}`)).length;
             const allOn = w === s.episodes.length && s.episodes.length > 0;
-            return <SeasonBlock key={s.season} s={s} watched={watched} count={w} allOn={allOn} onToggle={setEp} onToggleAll={setSeasonAll} />;
+            return <SeasonBlock key={s.season} s={s} watched={watched} count={w} allOn={allOn} onToggle={setEp} onToggleAll={setSeasonAll} onOpen={(ep) => setModalEp({ season: s.season, ep })} />;
           })}
         </>
+      )}
+
+      {modalEp && (
+        <EpisodeModal
+          show={t.name} season={modalEp.season} ep={modalEp.ep}
+          watched={watched.has(`${modalEp.season}:${modalEp.ep.episode}`)}
+          onToggle={(on) => { setEp(modalEp.season, modalEp.ep.episode, on); }}
+          onClose={() => setModalEp(null)}
+        />
       )}
     </>
   );
 }
 
-function SeasonBlock({ s, watched, count, allOn, onToggle, onToggleAll }: {
+function EpisodeModal({ show, season, ep, watched, onToggle, onClose }: {
+  show: string; season: number; ep: SeasonData["episodes"][number]; watched: boolean;
+  onToggle: (on: boolean) => void; onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        {ep.still ? <img className="modal-still" src={TMDB_IMG(ep.still, "w500")} alt="" /> : <div className="modal-still" style={{ background: "var(--bg-elev-2)" }} />}
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div style={{ padding: 16 }}>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 700 }}>{show} · S{pad(season)}E{pad(ep.episode)}</div>
+          <h2 style={{ margin: "4px 0 8px", fontSize: 19 }}>{ep.name || `Episode ${ep.episode}`}</h2>
+          <div className="muted" style={{ fontSize: 13, display: "flex", gap: 14, flexWrap: "wrap" }}>
+            {ep.air_date && <span>Aired {new Date(ep.air_date).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</span>}
+            {ep.runtime ? <span>{ep.runtime} min</span> : null}
+          </div>
+          <button className="btn" style={{ marginTop: 16, width: "100%", background: watched ? "var(--bg-elev-2)" : "var(--primary)" }} onClick={() => { onToggle(!watched); onClose(); }}>
+            {watched ? "Mark as unwatched" : "Mark as watched"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SeasonBlock({ s, watched, count, allOn, onToggle, onToggleAll, onOpen }: {
   s: SeasonData; watched: Set<string>; count: number; allOn: boolean;
   onToggle: (season: number, ep: number, on: boolean) => void;
   onToggleAll: (s: SeasonData, on: boolean) => void;
+  onOpen: (ep: SeasonData["episodes"][number]) => void;
 }) {
   const [open, setOpen] = useState(true);
   return (
@@ -159,10 +208,12 @@ function SeasonBlock({ s, watched, count, allOn, onToggle, onToggleAll }: {
         const on = watched.has(`${s.season}:${e.episode}`);
         return (
           <div className="ep-row" key={e.episode} style={{ padding: "10px 16px" }}>
-            {e.still ? <img className="ep-thumb" src={TMDB_IMG(e.still, "w185")} alt="" /> : <div className="ep-thumb" />}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>S{pad(s.season)} | E{pad(e.episode)}</div>
-              <div className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name || `Episode ${e.episode}`}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => onOpen(e)}>
+              {e.still ? <img className="ep-thumb" src={TMDB_IMG(e.still, "w185")} alt="" /> : <div className="ep-thumb" />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>S{pad(s.season)} | E{pad(e.episode)}</div>
+                <div className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name || `Episode ${e.episode}`}</div>
+              </div>
             </div>
             <button className={`ep-check ${on ? "done" : ""}`} onClick={() => onToggle(s.season, e.episode, !on)} title={on ? "Mark unwatched" : "Mark watched"}>
               <CheckIcon size={16} />
