@@ -66,7 +66,13 @@ function shapeMovie(d: any): TmdbMeta {
   };
 }
 
-const normName = (s: string) => s.toLowerCase().replace(/\(\d{4}\)/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+const normName = (s: string) =>
+  s.toLowerCase()
+    .replace(/\(\d{4}\)/g, "")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/^(the|a|an|le|la|les|el|il)\s+/, "") // strip leading article ("The Heirs" == "Heirs")
+    .trim();
 const tokensOf = (s: string) => normName(s).split(" ").filter(Boolean);
 
 /** Normalized edit-distance similarity (0..1). */

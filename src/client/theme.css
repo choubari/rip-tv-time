@@ -44,7 +44,8 @@ img { display: block; }
 
 /* Bottom navigation */
 .bottomnav {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 30;
+  width: 100%; max-width: var(--max-w);
   height: calc(var(--nav-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   display: flex; background: var(--bg-elev); border-top: 1px solid var(--border);

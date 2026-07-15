@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import type { UserProfile } from "../../shared/types";
 import { api, AuthError } from "./lib/api";
 import { BottomNav } from "./components/BottomNav";
@@ -14,9 +14,14 @@ import { Collection } from "./pages/Collection";
 export default function App() {
   const [user, setUser] = useState<UserProfile | null | undefined>(undefined); // undefined = loading
 
+  const location = useLocation();
+
   useEffect(() => {
     api.me().then((u) => setUser(u)).catch(() => setUser(null));
   }, []);
+
+  // Reset scroll to top whenever the route changes (grids/detail should open at top).
+  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
 
   if (user === undefined) {
     return <div className="center-screen"><div className="spinner" /></div>;

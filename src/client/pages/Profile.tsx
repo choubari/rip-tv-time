@@ -13,9 +13,9 @@ function hours(mins: number) {
   return `${d}d ${h % 24}h`;
 }
 
-// Order by tracking time: most recently added first (falls back to last watched).
-const byTracked = (a: LibraryItem, b: LibraryItem) =>
-  (b.added_at ?? b.last_watched_at ?? "").localeCompare(a.added_at ?? a.last_watched_at ?? "");
+// Same order as the library API: most recent activity first, then when added.
+const key = (i: LibraryItem) => (i.last_watched_at ?? "") + "|" + (i.added_at ?? "");
+const byTracked = (a: LibraryItem, b: LibraryItem) => key(b).localeCompare(key(a));
 
 export function Profile({ user, onChange }: { user: UserProfile; onChange: () => void }) {
   const [stats, setStats] = useState<Stats | null>(null);

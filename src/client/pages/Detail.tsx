@@ -139,18 +139,19 @@ export function Detail() {
         <>
           {seasons === null && <div style={{ padding: 16 }}><div className="spinner" /></div>}
 
-          <div className="section-head"><h2>Continue watching</h2></div>
-          {nextEp ? (
-            <div className="continue-card" onClick={() => setEp(nextEp.s, nextEp.e.episode, true)} style={{ cursor: "pointer" }}>
-              {nextEp.e.still ? <img className="ep-thumb" src={TMDB_IMG(nextEp.e.still, "w185")} alt="" /> : <div className="ep-thumb" />}
-              <div style={{ flex: 1 }}>
-                <strong>S{pad(nextEp.s)} | E{pad(nextEp.e.episode)}</strong>
-                <div className="muted" style={{ fontSize: 13 }}>{nextEp.e.name || `Episode ${nextEp.e.episode}`}</div>
+          {/* Only offer "Continue watching" for shows actually in progress. */}
+          {t.status !== "finished" && t.status !== "stopped" && nextEp && (
+            <>
+              <div className="section-head"><h2>Continue watching</h2></div>
+              <div className="continue-card" onClick={() => setEp(nextEp.s, nextEp.e.episode, true)} style={{ cursor: "pointer" }}>
+                {nextEp.e.still ? <img className="ep-thumb" src={TMDB_IMG(nextEp.e.still, "w185")} alt="" /> : <div className="ep-thumb" />}
+                <div style={{ flex: 1 }}>
+                  <strong>S{pad(nextEp.s)} | E{pad(nextEp.e.episode)}</strong>
+                  <div className="muted" style={{ fontSize: 13 }}>{nextEp.e.name || `Episode ${nextEp.e.episode}`}</div>
+                </div>
+                <button className="ep-check" title="Mark watched"><CheckIcon size={16} /></button>
               </div>
-              <button className="ep-check" title="Mark watched"><CheckIcon size={16} /></button>
-            </div>
-          ) : (
-            <div className="continue-card"><div style={{ padding: "6px 4px" }}><strong>All caught up 🎉</strong><div className="muted" style={{ fontSize: 13 }}>You've watched every episode.</div></div></div>
+            </>
           )}
 
           {showSeasons.map((s) => {

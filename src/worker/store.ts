@@ -51,10 +51,10 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
           // On re-import, force shows to re-resolve their episode total (so the
           // specials-excluding fix and newly-aired episodes are picked up) while
           // keeping the existing poster until the refresh lands.
-          // total_episodes comes from the export (authoritative — TMDB counts are
-          // often wrong). Only re-fetch the poster when the title NAME changed
-          // (i.e. a previously wrong match got corrected) — otherwise keep the
-          // existing artwork so a re-import doesn't blank everyone's posters.
+          // total_episodes + runtime come from the export (authoritative). Keep
+          // existing artwork; only re-resolve when the name changed or a poster is
+          // still missing. A fresh (empty) DB resolves everything correctly on
+          // first import, so we don't re-fetch on every re-import.
           `INSERT INTO titles (id, kind, tvdb_id, imdb_id, name, runtime, total_episodes) VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              name = excluded.name,
