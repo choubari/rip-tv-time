@@ -97,6 +97,12 @@ export async function seedImport(env: Env, userId: string, data: ParsedImport): 
     if (stmts.length) await env.DB.batch(stmts);
   }
 
+  // Drop orphan titles referenced by no library and no list (e.g. leftovers from
+  // opening a search result that was never tracked).
+  await env.DB.prepare(
+    `DELETE FROM titles WHERE id NOT IN (SELECT title_id FROM library) AND id NOT IN (SELECT title_id FROM list_items)`,
+  ).run();
+
   return { titles: data.titles.length, episodes };
 }
 
@@ -136,9 +142,10 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
     const meta = await resolveMeta(key, row.kind, row);
     if (meta && meta.tmdb_id > 0) {
       await env.DB.prepare(
-        // Keep the export's runtime + episode total (both more reliable than TMDB).
-        `UPDATE titles SET tmdb_id=?, name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
-      ).bind(meta.tmdb_id, meta.name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
+        // Keep the export's own name, runtime + episode total (all more reliable
+        // than TMDB, which e.g. drops the "(2027)" that distinguishes entries).
+        `UPDATE titles SET tmdb_id=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
+      ).bind(meta.tmdb_id, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
       resolved++;
     } else {
       // No trustworthy TMDB match — keep the export name, don't retry, no wrong art.

@@ -119,11 +119,6 @@ export function Detail() {
 
       {(!isShow || tab === "about") && (
         <div style={{ padding: 16 }}>
-          {!t.tracked ? (
-            <button className="btn" style={{ width: "100%", marginBottom: 14 }} onClick={() => { setT({ ...t, tracked: true }); patch({ status: isShow ? "watching" : "watch_next" }); }}>
-              + Track this {isShow ? "show" : "movie"}
-            </button>
-          ) : null}
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
             <select className="input" style={{ flex: 1 }} value={t.status} onChange={(e) => patch({ status: e.target.value as Status })}>
               {STATUS_MENU.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
@@ -171,6 +166,14 @@ export function Detail() {
           onToggle={(on) => { setEp(modalEp.season, modalEp.ep.episode, on); }}
           onClose={() => setModalEp(null)}
         />
+      )}
+
+      {!t.tracked && (
+        <div className="track-footer">
+          <button className="btn" style={{ width: "100%" }} onClick={() => { setT({ ...t, tracked: true }); patch({ status: isShow ? "watching" : "watch_next" }); }}>
+            + Track this {isShow ? "show" : "movie"}
+          </button>
+        </div>
       )}
     </>
   );

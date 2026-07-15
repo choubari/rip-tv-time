@@ -30,7 +30,7 @@ export const STATUS_LABEL: Record<Status, string> = {
   watching: "Watching",
   paused: "Haven't watched for a while",
   not_started: "Haven't started",
-  watch_next: "Watch next",
+  watch_next: "Watch later",
   finished: "Finished",
   stopped: "Stopped watching",
 };
