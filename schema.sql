@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS titles (
   imdb_id        TEXT,
   tvdb_id        INTEGER,
   name           TEXT NOT NULL,
+  original_name  TEXT,               -- original-language title from TMDB
   overview       TEXT,
   poster_path    TEXT,
   backdrop_path  TEXT,

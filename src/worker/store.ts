@@ -174,8 +174,8 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
       await env.DB.prepare(
         // Keep the export's own name, runtime + episode total (all more reliable
         // than TMDB, which e.g. drops the "(2027)" that distinguishes entries).
-        `UPDATE titles SET tmdb_id=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
-      ).bind(meta.tmdb_id, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
+        `UPDATE titles SET tmdb_id=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=COALESCE(total_episodes, ?), genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
+      ).bind(meta.tmdb_id, meta.original_name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
       resolved++;
     } else {
       // No trustworthy TMDB match — keep the export name, don't retry, no wrong art.
@@ -195,11 +195,14 @@ export async function resolveBatch(env: Env, limit = 40): Promise<{ resolved: nu
  */
 async function dedupeByTmdb(env: Env): Promise<void> {
   const { results: dupes } = await env.DB.prepare(
-    // Canonical = the id with the most watched episodes (ties broken by MIN id).
+    // Canonical = the id the user actually uses: most watched episodes, then
+    // most library rows (tracked), then MIN id. Keeps the tracked/watched copy.
     `SELECT t.kind, t.tmdb_id,
             (SELECT t2.id FROM titles t2
              WHERE t2.kind = t.kind AND t2.tmdb_id = t.tmdb_id
-             ORDER BY (SELECT COUNT(*) FROM watched_episodes w WHERE w.title_id = t2.id) DESC, t2.id ASC
+             ORDER BY (SELECT COUNT(*) FROM watched_episodes w WHERE w.title_id = t2.id) DESC,
+                      (SELECT COUNT(*) FROM library l WHERE l.title_id = t2.id) DESC,
+                      t2.id ASC
              LIMIT 1) AS keep
      FROM titles t
      WHERE t.tmdb_id IS NOT NULL AND t.tmdb_id > 0
@@ -227,7 +230,7 @@ async function dedupeByTmdb(env: Env): Promise<void> {
 function rowToMeta(r: any): TitleMeta {
   return {
     id: r.id, ref: r.ref ?? r.rowid ?? 0, kind: r.kind, tmdb_id: r.tmdb_id === -1 ? null : r.tmdb_id, imdb_id: r.imdb_id, tvdb_id: r.tvdb_id,
-    name: r.name, overview: r.overview, poster_path: r.poster_path, backdrop_path: r.backdrop_path,
+    name: r.name, original_name: r.original_name ?? null, overview: r.overview, poster_path: r.poster_path, backdrop_path: r.backdrop_path,
     release_date: r.release_date, runtime: r.runtime, total_episodes: r.total_episodes,
     genres: r.genres ? JSON.parse(r.genres) : [],
   };
@@ -269,8 +272,8 @@ export async function relinkTitle(env: Env, ref: number, tmdbId: number): Promis
   await env.DB.prepare(
     // Keep the export's own name; take episode total + everything else from TMDB
     // (the user explicitly chose this id, so trust its episode count).
-    `UPDATE titles SET tmdb_id=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
-  ).bind(meta.tmdb_id, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
+    `UPDATE titles SET tmdb_id=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
+  ).bind(meta.tmdb_id, meta.original_name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
   await dedupeByTmdb(env); // collapse into the copy that has the watch history
   return true;
 }

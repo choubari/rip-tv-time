@@ -67,6 +67,7 @@ img { display: block; }
 
 .poster { position: relative; }
 .poster .art {
+  position: relative; /* positioning context for the status bar + favorite star */
   aspect-ratio: 2/3; border-radius: var(--radius); overflow: hidden;
   background: var(--bg-elev-2); display: block; width: 100%;
 }

@@ -73,6 +73,7 @@ export interface TitleMeta {
   imdb_id: string | null;
   tvdb_id: number | null;
   name: string;
+  original_name?: string | null;
   overview: string | null;
   poster_path: string | null;
   backdrop_path: string | null;

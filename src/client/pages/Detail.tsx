@@ -99,6 +99,7 @@ export function Detail() {
           : <div className="poster-sm" style={{ aspectRatio: "2/3", background: "var(--bg-elev-2)" }} />}
         <div className="detail-meta">
           <h1>{t.name}</h1>
+          {t.original_name && <p className="muted" style={{ margin: "0 0 4px", fontSize: 13, fontStyle: "italic" }}>{t.original_name}</p>}
           <p className="muted" style={{ margin: "0 0 6px", fontSize: 13 }}>
             {[
               isShow && showSeasons.length ? `${showSeasons.length} season${showSeasons.length > 1 ? "s" : ""}` : t.release_date?.slice(0, 4),

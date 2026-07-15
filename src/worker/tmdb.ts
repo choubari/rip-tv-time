@@ -8,6 +8,7 @@ const BASE = "https://api.themoviedb.org/3";
 export interface TmdbMeta {
   tmdb_id: number;
   name: string;
+  original_name: string | null;
   overview: string | null;
   poster_path: string | null;
   backdrop_path: string | null;
@@ -42,6 +43,7 @@ function shapeTv(d: any): TmdbMeta {
   return {
     tmdb_id: d.id,
     name: d.name ?? d.original_name,
+    original_name: d.original_name && d.original_name !== d.name ? d.original_name : null,
     overview: d.overview || null,
     poster_path: d.poster_path || null,
     backdrop_path: d.backdrop_path || null,
@@ -56,6 +58,7 @@ function shapeMovie(d: any): TmdbMeta {
   return {
     tmdb_id: d.id,
     name: d.title ?? d.original_title,
+    original_name: d.original_title && d.original_title !== d.title ? d.original_title : null,
     overview: d.overview || null,
     poster_path: d.poster_path || null,
     backdrop_path: d.backdrop_path || null,
@@ -165,7 +168,7 @@ export async function resolveMeta(
   }
 
   // Nothing trustworthy: keep the export's own name, no poster/art.
-  return { tmdb_id: 0, name: ids.name, overview: null, poster_path: null, backdrop_path: null, release_date: null, runtime: null, total_episodes: null, genres: [] };
+  return { tmdb_id: 0, name: ids.name, original_name: null, overview: null, poster_path: null, backdrop_path: null, release_date: null, runtime: null, total_episodes: null, genres: [] };
 }
 
 async function fetchDetail(key: string | undefined, kind: "show" | "movie", id: number): Promise<TmdbMeta | null> {
