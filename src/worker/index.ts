@@ -17,7 +17,10 @@ app.post("/api/auth/request", async (c) => {
   const token = await createMagicToken(c.env, email);
   const link = `${c.env.APP_URL}/api/auth/verify?token=${token}`;
   const { delivered, devLink } = await sendMagicLink(c.env, email, link);
-  return c.json({ ok: true, delivered, devLink });
+  // Only expose the link in the response when there is NO email provider (local
+  // self-host). With email configured, the link is delivered by email only.
+  const emailConfigured = !!(c.env.RESEND_API_KEY && c.env.MAIL_FROM);
+  return c.json({ ok: true, delivered, devLink: emailConfigured ? undefined : devLink });
 });
 
 // One-click demo sign-in (public OSS deploy). Only works if DEMO_EMAIL is set.

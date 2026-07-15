@@ -12,7 +12,12 @@ export function BottomNav() {
   return (
     <nav className="bottomnav">
       {tabs.map(({ to, label, Icon, end }) => (
-        <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "active" : "")}>
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={({ isActive }) => (isActive ? "active" : "")}
+        >
           <Icon />
           {label}
         </NavLink>

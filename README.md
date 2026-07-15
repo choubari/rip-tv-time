@@ -10,20 +10,20 @@ TV Time-style responsive PWA.
 - 📊 Stats: total watch time, episodes and movies watched
 - 🔎 Search TMDB and track new shows & movies
 - 🔗 Passwordless **magic-link** login
-- 📱 Installable **PWA**, red theme (one CSS variable to re-skin)
+- 📱 Installable **PWA**, dark theme with main primary color (one CSS variable to re-skin)
 - ☁️ Runs on **Cloudflare Workers + D1** — cheap (free tier is plenty for one person)
 
 Fully open source (MIT).
 
 ## Tech stack
 
-| Layer     | Choice                                        |
-|-----------|-----------------------------------------------|
-| UI        | React + Vite + React Router, PWA              |
-| API       | Hono on Cloudflare Workers                    |
-| Database  | Cloudflare D1 (SQLite)                        |
-| Metadata  | TMDB (posters, artwork, runtimes, search)     |
-| Email     | Resend (optional; console fallback in dev)    |
+| Layer    | Choice                                     |
+| -------- | ------------------------------------------ |
+| UI       | React + Vite + React Router, PWA           |
+| API      | Hono on Cloudflare Workers                 |
+| Database | Cloudflare D1 (SQLite)                     |
+| Metadata | TMDB (posters, artwork, runtimes, search)  |
+| Email    | Resend (optional; console fallback in dev) |
 
 One `vite dev` runs the React client **and** the Worker with a local D1 database.
 
@@ -99,13 +99,13 @@ moves finished shows back to **Watching** when TMDB reports newly-aired episodes
 The importer prefers the richer JSON export (`tv-time-export.zip`) and merges
 extra bits from the GDPR export (`gdpr-data.zip`):
 
-| Source file                       | Used for                                    |
-|-----------------------------------|---------------------------------------------|
-| `shows.json`                      | shows, seasons, watched episodes, status    |
-| `movies.json` / `lists.json`      | movies (watched / watch-later)              |
-| `favorites.json`                  | favorites                                   |
-| `user_personal_data.csv` (GDPR)   | profile bio & cover image                   |
-| `user_show_special_status.csv`    | extra "watch later" statuses                |
+| Source file                     | Used for                                 |
+| ------------------------------- | ---------------------------------------- |
+| `shows.json`                    | shows, seasons, watched episodes, status |
+| `movies.json` / `lists.json`    | movies (watched / watch-later)           |
+| `favorites.json`                | favorites                                |
+| `user_personal_data.csv` (GDPR) | profile bio & cover image                |
+| `user_show_special_status.csv`  | extra "watch later" statuses             |
 
 TV Time statuses map to: `continuing → watching`, `up_to_date`, `watch_later`,
 `not_started_yet → haven't watched`, `stopped`. Titles carry TVDB/IMDB ids,
@@ -122,7 +122,7 @@ schema.sql     D1 schema
 
 ## Re-skin
 
-Change `--primary` in `src/client/theme.css` (default TV Time-red `#e50914`).
+Change `--primary` color in `src/client/theme.css`.
 
 ## License
 

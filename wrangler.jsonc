@@ -24,7 +24,9 @@
   ],
   "vars": {
     // App base URL used inside magic-link emails.
-    "APP_URL": "https://rip-tv-time.choub.workers.dev"
+    "APP_URL": "https://rip-tv-time.choub.workers.dev",
+    // Invite-only: only ADMIN_EMAIL, DEMO_EMAIL, and invited emails can sign in.
+    "INVITE_ONLY": "true"
     // Secrets (set with `wrangler secret put`): TMDB_API_KEY, RESEND_API_KEY, MAIL_FROM
   }
 }
