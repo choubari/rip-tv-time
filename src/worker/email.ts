@@ -18,7 +18,7 @@ export async function sendMagicLink(env: Env, email: string, link: string): Prom
       to: email,
       subject: "Your rip tv time sign-in link",
       html: `<p>Click to sign in to <strong>rip tv time</strong>:</p>
-             <p><a href="${link}" style="background:#e50914;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Sign in</a></p>
+             <p><a href="${link}" style="background:#21d07a;color:#0f0f0f;font-weight:700;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Sign in</a></p>
              <p>This link expires in 15 minutes.</p>`,
     }),
   });

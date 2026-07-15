@@ -5,6 +5,11 @@
 # Free key: https://www.themoviedb.org/settings/api  (v3 "API Key")
 TMDB_API_KEY=
 
+# TVDB API key (optional) — fallback for season/episode metadata. The exports are
+# TVDB-based, so TVDB has the correct season/episode layout when TMDB is wrong
+# (e.g. anime split into seasons). Free key: https://www.thetvdb.com/dashboard
+TVDB_API_KEY=
+
 # Email delivery for magic links (optional locally: the link is logged to the
 # console and shown in the UI when these are unset).
 RESEND_API_KEY=

@@ -3,6 +3,7 @@ export interface Env {
   ASSETS: Fetcher;
   APP_URL: string;
   TMDB_API_KEY?: string;
+  TVDB_API_KEY?: string; // optional fallback for season/episode metadata
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
   // Deployment / access control

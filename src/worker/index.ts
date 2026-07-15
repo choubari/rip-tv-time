@@ -4,6 +4,7 @@ import { createMagicToken, verifyMagicToken, setSessionCookie, clearSession, req
 import { sendMagicLink } from "./email";
 import { parseZips } from "./import";
 import { search, fetchSeasons } from "./tmdb";
+import { fetchTvdbSeasons } from "./tvdb";
 import { seedImport, resolveBatch, getLibrary, getTitle, getStats, addTitle, updateLibrary, toggleEpisode, getSetting, setSetting, tmdbKey, getLists, ensureTitle, refOf, getUnmatched, relinkTitle, refreshNewEpisodes } from "./store";
 import type { Status } from "../../shared/types";
 
@@ -130,8 +131,15 @@ app.get("/api/t/:ref", requireAuth, async (c) => {
 
 app.get("/api/t/:ref/seasons", requireAuth, async (c) => {
   const t = await getTitle(c.env, c.get("userId"), c.req.param("ref")!, true);
-  if (!t || t.kind !== "show" || !t.tmdb_id) return c.json({ seasons: [] });
-  return c.json({ seasons: await fetchSeasons(await tmdbKey(c.env), t.tmdb_id) });
+  if (!t || t.kind !== "show") return c.json({ seasons: [] });
+  // Prefer TVDB: the exports are TVDB-based, so its season/episode numbering
+  // matches the stored episodes exactly (TMDB sometimes flattens/miscounts).
+  if (t.tvdb_id && c.env.TVDB_API_KEY) {
+    const tvdb = await fetchTvdbSeasons(c.env.TVDB_API_KEY, t.tvdb_id);
+    if (tvdb.length) return c.json({ seasons: tvdb });
+  }
+  if (t.tmdb_id) return c.json({ seasons: await fetchSeasons(await tmdbKey(c.env), t.tmdb_id) });
+  return c.json({ seasons: [] });
 });
 
 app.get("/api/search", requireAuth, async (c) => {
