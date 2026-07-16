@@ -59,7 +59,12 @@ export function effectiveStatus(item: {
   last_watched_at?: string | null;
 }): Status {
   if (item.status !== "watching") return item.status;
-  if ((item.episodes_watched ?? 0) === 0) return "not_started";
+  const watched = item.episodes_watched ?? 0;
+  if (watched === 0) return "not_started";
+  const total = item.total_episodes ?? 0;
+  // All episodes watched → finished (totals now come from the export, so this is
+  // reliable). Marking every episode moves a show into Finished.
+  if (total > 0 && watched >= total) return "finished";
   const last = item.last_watched_at ? Date.parse(item.last_watched_at) : 0;
   const recent = last > 0 && Date.now() - last < RECENT_DAYS * 86400_000;
   return recent ? "watching" : "paused";

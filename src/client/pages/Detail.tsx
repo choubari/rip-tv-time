@@ -109,6 +109,15 @@ export function Detail() {
   const total = showSeasons.reduce((n, s) => n + s.episodes.length, 0) || t.total_episodes || 0;
   const watchedRegular = [...watched].filter((k) => Number(k.split(":")[0]) > 0).length;
   const pct = total ? Math.min(100, Math.round((watchedRegular / total) * 100)) : 0;
+  // Live status from the current watched count, so marking episodes updates the
+  // badge/labels immediately (no refresh needed).
+  const liveStatus: Status = (() => {
+    if (!isShow || !t.tracked || t.status === "stopped" || t.status === "watch_next") return t.status;
+    if (total > 0 && watchedRegular >= total) return "finished";
+    if (watchedRegular === 0) return "not_started";
+    if (t.status === "finished") return "watching"; // was finished, now some unmarked
+    return t.status;
+  })();
 
   // Next episode to watch (first unwatched in season/episode order).
   const nextEp = (() => {
@@ -136,7 +145,7 @@ export function Detail() {
           <p className="muted" style={{ margin: "0 0 6px", fontSize: 13 }}>
             {[
               isShow && showSeasons.length ? `${showSeasons.length} season${showSeasons.length > 1 ? "s" : ""}` : t.release_date?.slice(0, 4),
-              t.tracked ? STATUS_LABEL[t.status] : "Not tracked",
+              t.tracked ? STATUS_LABEL[liveStatus] : "Not tracked",
               t.genres.slice(0, 2).join(" · "),
             ].filter(Boolean).join(" · ")}
           </p>
@@ -155,7 +164,7 @@ export function Detail() {
         <div style={{ padding: 16 }}>
           {t.tracked && (
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
-              <select className="input" style={{ flex: 1 }} value={t.status} onChange={(e) => patch({ status: e.target.value as Status })}>
+              <select className="input" style={{ flex: 1 }} value={liveStatus} onChange={(e) => patch({ status: e.target.value as Status })}>
                 {STATUS_MENU.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
               </select>
               <button className="btn ghost" style={{ color: t.is_favorite ? "var(--primary)" : undefined }} onClick={() => patch({ is_favorite: !t.is_favorite })}>
@@ -174,7 +183,7 @@ export function Detail() {
           {seasons === null && <div style={{ padding: 16 }}><div className="spinner" /></div>}
 
           {/* Only offer "Continue watching" for shows actually in progress. */}
-          {t.status !== "finished" && t.status !== "stopped" && nextEp && (
+          {liveStatus !== "finished" && liveStatus !== "stopped" && nextEp && (
             <>
               <div className="section-head"><h2>Continue watching</h2></div>
               <div className="continue-card" onClick={() => setEp(nextEp.s, nextEp.e.episode, true)} style={{ cursor: "pointer" }}>
@@ -209,7 +218,7 @@ export function Detail() {
       {!t.tracked && <div style={{ height: 84 }} />}
       {!t.tracked && (
         <div className="track-footer">
-          <button className="btn" style={{ width: "100%" }} onClick={() => { setT({ ...t, tracked: true }); patch({ status: isShow ? "watching" : "watch_next" }); }}>
+          <button className="btn" style={{ width: "100%" }} onClick={() => { const s: Status = isShow ? "watching" : "watch_next"; setT({ ...t, tracked: true, status: s }); api.update(id, { status: s }); }}>
             + Track this {isShow ? "show" : "movie"}
           </button>
         </div>

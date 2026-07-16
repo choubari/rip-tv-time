@@ -247,6 +247,10 @@ function rowToItem(r: any): LibraryItem {
     added_at: r.added_at ?? null,
     last_watched_at: r.last_watched_at ?? null,
     episodes_watched: r.episodes_watched ?? 0,
+    // "Finished" means every episode IN THE LIST is watched. The list is the
+    // stored episodes (from the export), which is what the user can actually tick
+    // — TMDB's raw count can be higher (unaired/specials) and unreachable.
+    total_episodes: r.stored_total && r.kind === "show" ? r.stored_total : rowToMeta(r).total_episodes,
   };
   // Grouping uses the *derived* status (watching vs paused vs finished).
   return { ...base, status: effectiveStatus(base) };
@@ -256,7 +260,8 @@ export async function getLibrary(env: Env, userId: string, kind?: string): Promi
   const where = kind ? "AND l.kind = ?" : "";
   const stmt = env.DB.prepare(
     `SELECT t.*, t.rowid AS ref, l.status, l.is_favorite, l.rating, l.added_at, l.last_watched_at,
-            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0 AND w.watched = 1) AS episodes_watched
+            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0 AND w.watched = 1) AS episodes_watched,
+            (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0) AS stored_total
      FROM library l JOIN titles t ON t.id = l.title_id
      WHERE l.user_id = ? ${where}
      ORDER BY l.last_watched_at DESC NULLS LAST, l.added_at DESC NULLS LAST, t.name COLLATE NOCASE ASC`,
@@ -272,10 +277,10 @@ export async function relinkTitle(env: Env, ref: number, tmdbId: number): Promis
   const meta = await fetchDetail(await tmdbKey(env), row.kind, tmdbId);
   if (!meta) return false;
   await env.DB.prepare(
-    // Keep the export's own name; take episode total + everything else from TMDB
-    // (the user explicitly chose this id, so trust its episode count).
-    `UPDATE titles SET tmdb_id=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
-  ).bind(meta.tmdb_id, meta.original_name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
+    // The user explicitly chose this id — trust ALL of TMDB's metadata, including
+    // the name (a wrong name is metadata to fix just like the poster).
+    `UPDATE titles SET tmdb_id=?, name=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
+  ).bind(meta.tmdb_id, meta.name, meta.original_name, meta.overview, meta.poster_path, meta.backdrop_path, meta.release_date, meta.runtime, meta.total_episodes, JSON.stringify(meta.genres), row.id).run();
   await dedupeByTmdb(env); // collapse into the copy that has the watch history
   return true;
 }
@@ -319,7 +324,8 @@ export async function getTitle(env: Env, userId: string, titleId: string, byRef 
     "SELECT season, episode, watched, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
   ).bind(userId, titleId).all<{ season: number; watched: number }>();
   const regularWatched = episodes.filter((e) => e.season > 0 && e.watched).length;
-  const item = rowToItem({ ...r, episodes_watched: regularWatched });
+  const storedTotal = episodes.filter((e) => e.season > 0).length;
+  const item = rowToItem({ ...r, episodes_watched: regularWatched, stored_total: storedTotal });
   return { ...item, tracked: r.status != null, episodes: episodes.map((e) => ({ ...e, watched: !!e.watched })) };
 }
 
