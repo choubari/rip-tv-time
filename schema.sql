@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS titles (
   total_episodes INTEGER,           -- show: total aired episodes (for progress)
   genres         TEXT,               -- JSON array of genre names
   resolve_failed INTEGER NOT NULL DEFAULT 0, -- 1 = TMDB lookup attempted & failed
+  manual_match   INTEGER NOT NULL DEFAULT 0, -- 1 = user pinned this id; resolver must not touch it
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

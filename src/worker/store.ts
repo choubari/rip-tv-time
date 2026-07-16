@@ -119,14 +119,16 @@ export async function seedImport(
           // existing artwork; only re-resolve when the name changed or a poster is
           // still missing. A fresh (empty) DB resolves everything correctly on
           // first import, so we don't re-fetch on every re-import.
+          // A user-pinned title (manual_match=1) keeps its name/artwork/ids on
+          // re-import — only its episode total refreshes.
           `INSERT INTO titles (id, kind, tvdb_id, imdb_id, name, runtime, total_episodes) VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
-             name = excluded.name,
+             name = CASE WHEN titles.manual_match = 1 THEN titles.name ELSE excluded.name END,
              runtime = COALESCE(titles.runtime, excluded.runtime),
              total_episodes = COALESCE(excluded.total_episodes, titles.total_episodes),
-             poster_path = CASE WHEN titles.name <> excluded.name THEN NULL ELSE titles.poster_path END,
-             backdrop_path = CASE WHEN titles.name <> excluded.name THEN NULL ELSE titles.backdrop_path END,
-             resolve_failed = CASE WHEN titles.name <> excluded.name OR titles.poster_path IS NULL THEN 0 ELSE titles.resolve_failed END`,
+             poster_path = CASE WHEN titles.manual_match = 0 AND titles.name <> excluded.name THEN NULL ELSE titles.poster_path END,
+             backdrop_path = CASE WHEN titles.manual_match = 0 AND titles.name <> excluded.name THEN NULL ELSE titles.backdrop_path END,
+             resolve_failed = CASE WHEN titles.manual_match = 0 AND (titles.name <> excluded.name OR titles.poster_path IS NULL) THEN 0 ELSE titles.resolve_failed END`,
         ).bind(
           id,
           t.kind,
@@ -293,7 +295,7 @@ export async function tmdbKey(env: Env): Promise<string | undefined> {
  */
 export async function retryUnresolved(env: Env): Promise<number> {
   const r = await env.DB.prepare(
-    "UPDATE titles SET resolve_failed = 0 WHERE resolve_failed = 1 AND poster_path IS NULL",
+    "UPDATE titles SET resolve_failed = 0 WHERE resolve_failed = 1 AND poster_path IS NULL AND manual_match = 0",
   ).run();
   return r.meta.changes ?? 0;
 }
@@ -309,7 +311,7 @@ export async function resolveBatch(
     // external-id matches (a show that maps to a smaller TMDB title).
     `SELECT t.id, t.kind, t.tvdb_id, t.imdb_id, t.name, t.runtime,
             (SELECT COUNT(DISTINCT w.season || ':' || w.episode) FROM watched_episodes w WHERE w.title_id = t.id AND w.season > 0 AND w.watched = 1) AS watched
-     FROM titles t WHERE t.resolve_failed = 0 AND t.poster_path IS NULL LIMIT ?`,
+     FROM titles t WHERE t.resolve_failed = 0 AND t.poster_path IS NULL AND t.manual_match = 0 LIMIT ?`,
   )
     .bind(limit)
     .all<{
@@ -356,7 +358,7 @@ export async function resolveBatch(
     }
   }
   const rem = await env.DB.prepare(
-    "SELECT COUNT(*) as c FROM titles WHERE resolve_failed = 0 AND poster_path IS NULL",
+    "SELECT COUNT(*) as c FROM titles WHERE resolve_failed = 0 AND poster_path IS NULL AND manual_match = 0",
   ).first<{ c: number }>();
   await dedupeByTmdb(env); // always collapse tmdb_id duplicates (e.g. movie listed twice)
   return { resolved, remaining: rem?.c ?? 0 };
@@ -375,7 +377,8 @@ async function dedupeByTmdb(env: Env): Promise<void> {
     `SELECT t.kind, t.tmdb_id,
             (SELECT t2.id FROM titles t2
              WHERE t2.kind = t.kind AND t2.tmdb_id = t.tmdb_id
-             ORDER BY (SELECT COUNT(*) FROM watched_episodes w WHERE w.title_id = t2.id AND w.watched = 1) DESC,
+             ORDER BY t2.manual_match DESC,
+                      (SELECT COUNT(*) FROM watched_episodes w WHERE w.title_id = t2.id AND w.watched = 1) DESC,
                       (SELECT COUNT(*) FROM library l WHERE l.title_id = t2.id) DESC,
                       t2.id ASC
              LIMIT 1) AS keep
@@ -520,8 +523,10 @@ export async function relinkTitle(
   }
   await env.DB.prepare(
     // The user explicitly chose this id — trust ALL of TMDB's metadata, including
-    // the name (a wrong name is metadata to fix just like the poster).
-    `UPDATE titles SET tmdb_id=?, name=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, updated_at=datetime('now') WHERE id=?`,
+    // the name (a wrong name is metadata to fix just like the poster). Pin it
+    // (manual_match=1) so the background resolver never overrides it, even if the
+    // chosen TMDB entry has no poster.
+    `UPDATE titles SET tmdb_id=?, name=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, manual_match=1, updated_at=datetime('now') WHERE id=?`,
   )
     .bind(
       meta.tmdb_id,
@@ -548,7 +553,7 @@ export async function getUnmatched(
 ): Promise<{ ref: number; name: string; kind: string }[]> {
   const { results } = await env.DB.prepare(
     `SELECT t.rowid AS ref, t.name, t.kind FROM library l JOIN titles t ON t.id = l.title_id
-     WHERE l.user_id = ? AND t.resolve_failed = 1 AND t.poster_path IS NULL
+     WHERE l.user_id = ? AND t.resolve_failed = 1 AND t.poster_path IS NULL AND t.manual_match = 0
      ORDER BY t.kind, t.name COLLATE NOCASE`,
   )
     .bind(userId)
