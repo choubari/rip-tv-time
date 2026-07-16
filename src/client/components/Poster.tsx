@@ -5,7 +5,8 @@ import { StarIcon } from "./icons";
 
 // Reusable TV Time-style colored progress bar. Fills to watched % for in-progress
 // and stopped shows (a show stopped at ep 2/10 shows a short red bar), full for
-// finished. No bar for "haven't started" / "watch next". Used by posters + search.
+// finished. "Watch later" shows an (orange) progress bar too when it was started
+// before being shelved; no bar for "haven't started". Used by posters + search.
 export function StatusBar({
   status,
   watched,
@@ -15,14 +16,21 @@ export function StatusBar({
   watched?: number;
   total?: number | null;
 }) {
-  if (status === "not_started" || status === "watch_next") return null;
+  if (status === "not_started") return null;
   const partial =
-    status === "watching" || status === "paused" || status === "stopped";
+    status === "watching" ||
+    status === "paused" ||
+    status === "stopped" ||
+    status === "watch_next";
+  const hasProgress = !!(total && watched);
+  // "Watch later" with no progress yet shows no bar; once it has watched
+  // episodes it fills to the watched % (in the watch_next/orange color).
+  if (status === "watch_next" && !hasProgress) return null;
   // Partial statuses fill to watched %; finished fills fully. A partial show with
   // no progress yet (e.g. just-tracked / upcoming) shows an empty bar, never 100%.
   const pct = partial
-    ? total && watched
-      ? Math.min(100, Math.round((watched / total) * 100))
+    ? hasProgress
+      ? Math.min(100, Math.round((watched! / total!) * 100))
       : 0
     : 100;
   return (
