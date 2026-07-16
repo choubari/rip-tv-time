@@ -526,7 +526,9 @@ export async function relinkTitle(
     // the name (a wrong name is metadata to fix just like the poster). Pin it
     // (manual_match=1) so the background resolver never overrides it, even if the
     // chosen TMDB entry has no poster.
-    `UPDATE titles SET tmdb_id=?, name=?, original_name=?, overview=?, poster_path=?, backdrop_path=?, release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, manual_match=1, updated_at=datetime('now') WHERE id=?`,
+    // COALESCE poster/backdrop so a relink whose source has no artwork keeps any
+    // poster the title already had (never blanks it out).
+    `UPDATE titles SET tmdb_id=?, name=?, original_name=?, overview=?, poster_path=COALESCE(?, poster_path), backdrop_path=COALESCE(?, backdrop_path), release_date=?, runtime=COALESCE(runtime, ?), total_episodes=?, genres=?, resolve_failed=0, manual_match=1, updated_at=datetime('now') WHERE id=?`,
   )
     .bind(
       meta.tmdb_id,
