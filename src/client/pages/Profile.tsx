@@ -19,12 +19,6 @@ function hours(mins: number) {
   return `${d}d ${h % 24}h`;
 }
 
-// Same order as the library API: most recent activity first, then when added.
-const key = (i: LibraryItem) =>
-  (i.last_watched_at ?? "") + "|" + (i.added_at ?? "");
-const byTracked = (a: LibraryItem, b: LibraryItem) =>
-  key(b).localeCompare(key(a));
-
 export function Profile({
   user,
   onChange,
@@ -65,8 +59,9 @@ export function Profile({
     nav("/");
   }
 
-  const shows = lib.filter((i) => i.kind === "show").sort(byTracked);
-  const movies = lib.filter((i) => i.kind === "movie").sort(byTracked);
+  // Keep the server's order (COALESCE(last_watched, added) DESC) — same as /all.
+  const shows = lib.filter((i) => i.kind === "show");
+  const movies = lib.filter((i) => i.kind === "movie");
   const favShows = shows.filter((i) => i.is_favorite);
   const favMovies = movies.filter((i) => i.is_favorite);
 
