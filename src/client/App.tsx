@@ -4,6 +4,7 @@ import type { UserProfile } from "../../shared/types";
 import { api, AuthError } from "./lib/api";
 import { BottomNav } from "./components/BottomNav";
 import { InstallPrompt } from "./components/InstallPrompt";
+import { Toaster } from "./components/Toaster";
 import { Login } from "./pages/Login";
 import { ImportPage } from "./pages/ImportPage";
 import { Shows, Movies } from "./pages/Library";
@@ -33,7 +34,7 @@ export default function App() {
   // open, regardless of which page you're on — so leaving the Import screen no
   // longer stops it. Gentle pacing to respect TMDB limits.
   useEffect(() => {
-    if (!user) return;
+    if (!user || user.is_demo) return; // demo is read-only — no resolving
     let stop = false;
     (async () => {
       while (!stop) {
@@ -61,21 +62,24 @@ export default function App() {
 
   if (!user) {
     return (
-      <Routes>
-        <Route
-          path="*"
-          element={
-            <Login
-              onDone={() =>
-                api
-                  .me()
-                  .then(setUser)
-                  .catch(() => {})
-              }
-            />
-          }
-        />
-      </Routes>
+      <>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <Login
+                onDone={() =>
+                  api
+                    .me()
+                    .then(setUser)
+                    .catch(() => {})
+                }
+              />
+            }
+          />
+        </Routes>
+        <Toaster />
+      </>
     );
   }
 
@@ -110,6 +114,7 @@ export default function App() {
       </Routes>
       <InstallPrompt />
       <BottomNav />
+      <Toaster />
     </div>
   );
 }

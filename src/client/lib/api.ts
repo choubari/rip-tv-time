@@ -5,14 +5,18 @@ import type {
   UserProfile,
 } from "../../../shared/types";
 import type { SearchResult, SeasonData } from "../../worker/tmdb";
+import { toast } from "./toast";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: "same-origin", ...init });
   if (res.status === 401) throw new AuthError();
-  if (!res.ok)
-    throw new Error(
-      ((await res.json().catch(() => ({}))) as any).error || res.statusText,
-    );
+  if (!res.ok) {
+    const message =
+      ((await res.json().catch(() => ({}))) as any).error || res.statusText;
+    // Surface every API error as a toast (403 read-only, 429 rate limit, etc.).
+    toast(message);
+    throw new Error(message);
+  }
   return res.json() as Promise<T>;
 }
 

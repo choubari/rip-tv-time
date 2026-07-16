@@ -64,7 +64,7 @@ const blockDemo = async (c: Ctx, next: Next) => {
 // ---------------------------------------------------------------- auth
 app.post(
   "/api/auth/request",
-  rl((c) => `authreq:${clientIp(c)}`, 6, 900), // 6 per 15 min per IP (email-spam guard)
+  rl((c) => `authreq:${clientIp(c)}`, 20, 900), // 6 per 15 min per IP (email-spam guard)
   async (c) => {
     const { email } = await c.req.json<{ email?: string }>();
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
@@ -91,7 +91,7 @@ app.post(
 // One-click demo sign-in (public OSS deploy). Only works if DEMO_EMAIL is set.
 app.post(
   "/api/auth/demo",
-  rl((c) => `demo:${clientIp(c)}`, 20, 3600),
+  rl((c) => `demo:${clientIp(c)}`, 60, 3600),
   async (c) => {
     if (!c.env.DEMO_EMAIL) return c.json({ error: "demo not enabled" }, 404);
     const token = await createMagicToken(c.env, c.env.DEMO_EMAIL);
@@ -163,7 +163,7 @@ app.post(
   "/api/import",
   requireAuth,
   blockDemo,
-  rl((c) => `import:${c.get("userId")}`, 6, 3600),
+  rl((c) => `import:${c.get("userId")}`, 30, 3600),
   async (c) => {
     const form = await c.req.formData();
     const files = form
@@ -189,7 +189,7 @@ app.post(
   "/api/resolve",
   requireAuth,
   blockDemo,
-  rl((c) => `resolve:${c.get("userId")}`, 400, 300),
+  rl((c) => `resolve:${c.get("userId")}`, 1500, 300),
   async (c) => {
     const limit = Math.min(Number(c.req.query("limit") ?? 40), 50);
     return c.json(await resolveBatch(c.env, limit));
@@ -218,7 +218,7 @@ app.post(
   "/api/relink",
   requireAuth,
   blockDemo,
-  rl((c) => `relink:${c.get("userId")}`, 30, 60),
+  rl((c) => `relink:${c.get("userId")}`, 60, 60),
   async (c) => {
     const { ref, tmdb_id } = await c.req.json<{
       ref: number;
@@ -233,7 +233,7 @@ app.post(
 app.post(
   "/api/title/ensure",
   requireAuth,
-  rl((c) => `ensure:${c.get("userId")}`, 60, 60),
+  rl((c) => `ensure:${c.get("userId")}`, 120, 60),
   async (c) => {
     const { kind, tmdb_id } = await c.req.json<{
       kind: "show" | "movie";
@@ -253,7 +253,7 @@ app.get("/api/t/:ref", requireAuth, async (c) => {
 app.get(
   "/api/t/:ref/seasons",
   requireAuth,
-  rl((c) => `seasons:${c.get("userId")}`, 120, 60),
+  rl((c) => `seasons:${c.get("userId")}`, 300, 60),
   async (c) => {
     const t = await getTitle(c.env, c.get("userId"), c.req.param("ref")!, true);
     if (!t || t.kind !== "show") return c.json({ seasons: [] });
@@ -274,7 +274,7 @@ app.get(
 app.get(
   "/api/search",
   requireAuth,
-  rl((c) => `search:${c.get("userId")}`, 60, 60),
+  rl((c) => `search:${c.get("userId")}`, 120, 60),
   async (c) => {
     const q = c.req.query("q");
     if (!q) return c.json([]);
