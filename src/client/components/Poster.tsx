@@ -18,10 +18,13 @@ export function StatusBar({
   if (status === "not_started" || status === "watch_next") return null;
   const partial =
     status === "watching" || status === "paused" || status === "stopped";
-  const pct =
-    partial && total && watched
+  // Partial statuses fill to watched %; finished fills fully. A partial show with
+  // no progress yet (e.g. just-tracked / upcoming) shows an empty bar, never 100%.
+  const pct = partial
+    ? total && watched
       ? Math.min(100, Math.round((watched / total) * 100))
-      : 100;
+      : 0
+    : 100;
   return (
     <div className="status-bar" style={{ background: "rgba(255,255,255,.18)" }}>
       <span style={{ width: `${pct}%`, background: STATUS_COLOR[status] }} />

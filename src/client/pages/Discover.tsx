@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { SearchResult } from "../../worker/tmdb";
-import { TMDB_IMG, type Status } from "../../../shared/types";
+import { TMDB_IMG, effectiveStatus, type Status } from "../../../shared/types";
 import { StatusBar } from "../components/Poster";
 import { api } from "../lib/api";
 
@@ -96,7 +96,12 @@ export function Discover() {
               )}
               {r.tracked_ref && r.status && (
                 <StatusBar
-                  status={r.status as Status}
+                  status={effectiveStatus({
+                    kind: r.kind,
+                    status: r.status as Status,
+                    episodes_watched: r.watched,
+                    total_episodes: r.total_episodes,
+                  })}
                   watched={r.watched}
                   total={r.total_episodes}
                 />
