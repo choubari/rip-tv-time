@@ -15,7 +15,7 @@ import {
 import type { Context, Next } from "hono";
 import { sendMagicLink } from "./email";
 import { parseZips } from "./import";
-import { search, fetchSeasons } from "./tmdb";
+import { search, fetchSeasons, fetchExtra } from "./tmdb";
 import { fetchTvdbSeasons } from "./tvdb";
 import {
   seedImport,
@@ -266,6 +266,32 @@ app.get("/api/t/:ref", requireAuth, async (c) => {
   const t = await getTitle(c.env, c.get("userId"), c.req.param("ref")!, true);
   return t ? c.json(t) : c.json({ error: "not found" }, 404);
 });
+
+// Cast (with photos) + TMDB/IMDb ratings for the about page.
+app.get(
+  "/api/t/:ref/extra",
+  requireAuth,
+  rl((c) => `extra:${c.get("userId")}`, 300, 60),
+  async (c) => {
+    const t = await getTitle(c.env, c.get("userId"), c.req.param("ref")!, true);
+    if (!t || !t.tmdb_id)
+      return c.json({
+        cast: [],
+        imdb_id: null,
+        tmdb_rating: null,
+        tmdb_votes: null,
+        imdb_rating: null,
+      });
+    return c.json(
+      await fetchExtra(
+        await tmdbKey(c.env),
+        c.env.OMDB_API_KEY,
+        t.kind,
+        t.tmdb_id,
+      ),
+    );
+  },
+);
 
 app.get(
   "/api/t/:ref/seasons",

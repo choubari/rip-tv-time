@@ -769,3 +769,56 @@ img {
   background: var(--primary);
   transition: width 0.3s;
 }
+
+/* Detail: cast strip + rating badges */
+.cast-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.cast-card {
+  flex: 0 0 84px;
+  width: 84px;
+  text-align: center;
+}
+.cast-photo {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--card);
+}
+.cast-photo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.cast-name {
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.2;
+}
+.cast-role {
+  font-size: 11px;
+  line-height: 1.2;
+}
+.rating-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+.rating-badge b {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  background: var(--card);
+  padding: 2px 6px;
+  border-radius: 4px;
+}

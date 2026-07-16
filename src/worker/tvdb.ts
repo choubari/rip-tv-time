@@ -33,6 +33,42 @@ async function login(apikey: string): Promise<string | null> {
 const img = (p: string | null | undefined): string | null =>
   !p ? null : p.startsWith("http") ? p : ART + p;
 
+export interface TvdbSeries {
+  name: string;
+  overview: string | null;
+  poster_path: string | null;
+  first_air_date: string | null;
+}
+
+/**
+ * Basic series record from TVDB — used as a metadata fallback when a title isn't
+ * on TMDB at all (poster URLs are already absolute, so they render as-is).
+ */
+export async function fetchTvdbSeries(
+  apikey: string | undefined,
+  tvdbId: number,
+): Promise<TvdbSeries | null> {
+  if (!apikey) return null;
+  const token = await login(apikey);
+  if (!token) return null;
+  try {
+    const res = await fetch(`${BASE}/series/${tvdbId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const d = ((await res.json()) as any)?.data;
+    if (!d) return null;
+    return {
+      name: d.name ?? "",
+      overview: d.overview ?? null,
+      poster_path: img(d.image),
+      first_air_date: d.firstAired || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Full season/episode structure for a show from TVDB (official season order). */
 export async function fetchTvdbSeasons(
   apikey: string | undefined,

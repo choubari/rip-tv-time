@@ -7,6 +7,8 @@ import { api, type TitleDetail } from "../lib/api";
 import { StarIcon, CheckIcon } from "../components/icons";
 import { Loading } from "../components/Loading";
 
+type Extra = Awaited<ReturnType<typeof api.extra>>;
+
 export function Detail() {
   const { ref = "" } = useParams();
   const [t, setT] = useState<TitleDetail | null>(null);
@@ -16,6 +18,7 @@ export function Detail() {
   const [watchedDates, setWatchedDates] = useState<Map<string, string | null>>(
     new Map(),
   );
+  const [extra, setExtra] = useState<Extra | null>(null);
   const [tab, setTab] = useState<"about" | "episodes">("episodes");
   const [modalEp, setModalEp] = useState<{
     season: number;
@@ -27,6 +30,11 @@ export function Detail() {
   useEffect(() => {
     setNotFound(false);
     setT(null);
+    setExtra(null);
+    api
+      .extra(ref)
+      .then(setExtra)
+      .catch(() => {});
     api
       .title(ref)
       .then((d) => {
@@ -349,6 +357,62 @@ export function Detail() {
             <p className="muted" style={{ fontSize: 13 }}>
               {t.genres.join(" · ")}
             </p>
+          )}
+          {extra &&
+            (extra.imdb_rating != null || extra.tmdb_rating != null) && (
+              <div style={{ display: "flex", gap: 16, margin: "12px 0" }}>
+                {extra.imdb_rating != null && (
+                  <a
+                    className="rating-badge"
+                    href={
+                      extra.imdb_id
+                        ? `https://www.imdb.com/title/${extra.imdb_id}/`
+                        : undefined
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <b>IMDb</b> {extra.imdb_rating.toFixed(1)}
+                  </a>
+                )}
+                {extra.tmdb_rating != null && (
+                  <span className="rating-badge">
+                    <b>TMDB</b> {extra.tmdb_rating.toFixed(1)}
+                    {extra.tmdb_votes ? (
+                      <span className="muted" style={{ marginLeft: 4 }}>
+                        ({extra.tmdb_votes.toLocaleString()})
+                      </span>
+                    ) : null}
+                  </span>
+                )}
+              </div>
+            )}
+          {extra && extra.cast.length > 0 && (
+            <div style={{ margin: "16px 0" }}>
+              <h2 style={{ fontSize: 15, marginBottom: 8 }}>Cast</h2>
+              <div className="cast-row">
+                {extra.cast.map((c, i) => (
+                  <div className="cast-card" key={i}>
+                    {c.profile_path ? (
+                      <img
+                        className="cast-photo"
+                        src={TMDB_IMG(c.profile_path, "w185")}
+                        alt={c.name}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="cast-photo cast-photo-empty">
+                        {c.name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="cast-name">{c.name}</div>
+                    {c.character && (
+                      <div className="cast-role muted">{c.character}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
           <Relink refId={t.ref} onDone={() => location.reload()} />
         </div>

@@ -8,6 +8,7 @@ import type {
 } from "../../../shared/types";
 import { TMDB_IMG } from "../../../shared/types";
 import { api } from "../lib/api";
+import { toast } from "../lib/toast";
 import { PosterRow } from "../components/Poster";
 import { StarIcon } from "../components/icons";
 
@@ -196,7 +197,7 @@ export function Profile({
             <span className="count">{unmatched.length}</span>
           </h2>
           <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-            These titles have no reliable TMDB match. Find each on{" "}
+            These titles have no reliable match. Find each on{" "}
             <a
               style={{ color: "var(--primary)" }}
               href="https://www.themoviedb.org"
@@ -204,12 +205,21 @@ export function Profile({
               rel="noreferrer"
             >
               themoviedb.org
+            </a>{" "}
+            or{" "}
+            <a
+              style={{ color: "var(--primary)" }}
+              href="https://thetvdb.com"
+              target="_blank"
+              rel="noreferrer"
+            >
+              thetvdb.com
             </a>
-            , copy the number from its URL (e.g.{" "}
+            , copy the id from its URL (TMDB e.g.{" "}
             <code>
               /tv/<b>1396</b>
             </code>
-            ), paste it below and save.
+            ), pick the matching source, paste the id and save.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {unmatched.map((u) => (
@@ -390,7 +400,12 @@ function RelinkRow({
     try {
       const r = await api.relink(item.ref, n, source);
       if (r.ok) onDone();
-      else setErr(true);
+      else {
+        setErr(true);
+        toast(
+          `No ${source.toUpperCase()} match for id ${n} — check the id and source.`,
+        );
+      }
     } catch {
       setErr(true);
     } finally {

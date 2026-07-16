@@ -89,6 +89,18 @@ export const api = {
   title: (ref: string | number) => req<TitleDetail>(`/api/t/${ref}`),
   seasons: (ref: string | number) =>
     req<{ seasons: SeasonData[] }>(`/api/t/${ref}/seasons`),
+  extra: (ref: string | number) =>
+    req<{
+      cast: {
+        name: string;
+        character: string | null;
+        profile_path: string | null;
+      }[];
+      imdb_id: string | null;
+      tmdb_rating: number | null;
+      tmdb_votes: number | null;
+      imdb_rating: number | null;
+    }>(`/api/t/${ref}/extra`),
   search: (q: string) =>
     req<
       (SearchResult & {

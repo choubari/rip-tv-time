@@ -273,6 +273,75 @@ export async function fetchByTvdb(
   return fetchDetail(key, kind, hit.id);
 }
 
+export interface CastMember {
+  name: string;
+  character: string | null;
+  profile_path: string | null;
+}
+export interface TitleExtra {
+  cast: CastMember[];
+  imdb_id: string | null;
+  tmdb_rating: number | null; // 0-10
+  tmdb_votes: number | null;
+  imdb_rating: number | null; // 0-10, only when an OMDb key is configured
+}
+
+/** Cast (with photos) + ratings for a title's about page (one TMDB call). */
+export async function fetchExtra(
+  key: string | undefined,
+  omdbKey: string | undefined,
+  kind: "show" | "movie",
+  tmdbId: number,
+): Promise<TitleExtra> {
+  const empty: TitleExtra = {
+    cast: [],
+    imdb_id: null,
+    tmdb_rating: null,
+    tmdb_votes: null,
+    imdb_rating: null,
+  };
+  const d = await tmdb<any>(
+    key,
+    `/${kind === "show" ? "tv" : "movie"}/${tmdbId}`,
+    {
+      append_to_response: "credits,external_ids",
+    },
+  );
+  if (!d) return empty;
+  const cast: CastMember[] = (d.credits?.cast ?? []).slice(0, 20).map(
+    (c: any): CastMember => ({
+      name: c.name,
+      character: c.character || null,
+      profile_path: c.profile_path || null,
+    }),
+  );
+  const imdb_id = d.external_ids?.imdb_id || d.imdb_id || null;
+  const extra: TitleExtra = {
+    cast,
+    imdb_id,
+    tmdb_rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null,
+    tmdb_votes: d.vote_count ?? null,
+    imdb_rating: null,
+  };
+  // If an OMDb key is configured, fetch the real IMDb rating for that imdb id.
+  if (omdbKey && imdb_id) {
+    try {
+      const res = await fetch(
+        `https://www.omdbapi.com/?apikey=${omdbKey}&i=${imdb_id}`,
+      );
+      const j: any = res.ok ? await res.json() : null;
+      const r =
+        j && j.imdbRating && j.imdbRating !== "N/A"
+          ? Number(j.imdbRating)
+          : null;
+      if (r && !isNaN(r)) extra.imdb_rating = r;
+    } catch {
+      /* ignore — fall back to the TMDB rating */
+    }
+  }
+  return extra;
+}
+
 export interface SearchResult {
   kind: "show" | "movie";
   tmdb_id: number;

@@ -13,6 +13,7 @@ import {
   fetchByTvdb,
   lastAiredEpisode,
 } from "./tmdb";
+import { fetchTvdbSeries } from "./tvdb";
 
 /**
  * Fixed-window rate limiter backed by D1. Returns true if the action is allowed.
@@ -486,10 +487,28 @@ export async function relinkTitle(
     .first<{ id: string; kind: "show" | "movie" }>();
   if (!row) return false;
   const key = await tmdbKey(env);
-  const meta =
+  let meta =
     source === "tvdb"
       ? await fetchByTvdb(key, row.kind, id)
       : await fetchDetail(key, row.kind, id);
+  // TVDB id with no TMDB counterpart (common for regional shows): fall back to
+  // TVDB's own metadata so the title still gets a name, poster and overview.
+  if (!meta && source === "tvdb" && row.kind === "show") {
+    const s = await fetchTvdbSeries(env.TVDB_API_KEY, id);
+    if (s)
+      meta = {
+        tmdb_id: 0,
+        name: s.name,
+        original_name: null,
+        overview: s.overview,
+        poster_path: s.poster_path,
+        backdrop_path: null,
+        release_date: s.first_air_date,
+        runtime: null,
+        total_episodes: null,
+        genres: [],
+      };
+  }
   if (!meta) return false;
   // Remember the TVDB id the user provided (drives correct season/episode data).
   if (source === "tvdb") {
