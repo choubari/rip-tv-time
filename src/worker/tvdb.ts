@@ -45,8 +45,10 @@ export async function fetchTvdbSeasons(
   let page = 0;
   try {
     while (page < 20) {
+      // Request English episode names/overviews; TVDB falls back to the series'
+      // default language for any episode without an English translation.
       const res = await fetch(
-        `${BASE}/series/${tvdbId}/episodes/official?page=${page}`,
+        `${BASE}/series/${tvdbId}/episodes/official/eng?page=${page}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },

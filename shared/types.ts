@@ -173,4 +173,7 @@ export interface ListSummary {
 export const TMDB_IMG = (
   path: string,
   size: "w185" | "w342" | "w500" | "original" = "w342",
-) => `https://image.tmdb.org/t/p/${size}${path}`;
+) =>
+  // Stills/posters can come from TVDB (already absolute URLs) as well as TMDB
+  // (relative paths). Only prepend the TMDB host for relative TMDB paths.
+  path?.startsWith("http") ? path : `https://image.tmdb.org/t/p/${size}${path}`;

@@ -7,7 +7,10 @@ TV Time-style responsive PWA.
 
 ▶️ **Live demo:** https://rip-tv-time.choub.workers.dev (tap **Try the demo**)
 
-- 📦 **Import** your `tv-time-export.zip` and/or GDPR `gdpr-data.zip`
+- 📦 **Import** your `tv-time-export.zip` (from
+  [tv-time-liberator](https://github.com/hobo-Ware/tv-time-liberator)) and/or your
+  GDPR `gdpr-data.zip` (requested from TV Time) — see
+  [Getting your export](#getting-your-export)
 - 📺 Poster library grouped by status: Watching · Haven't watched for a while ·
   Haven't started · Watch later · Finished · Stopped
 - 📊 Stats: total watch time, episodes and movies watched
