@@ -9,7 +9,6 @@ import type {
 import { TMDB_IMG } from "../../../shared/types";
 import { api } from "../lib/api";
 import { RelinkHint, RelinkControls } from "../components/RelinkForm";
-import { Attribution } from "../components/Attribution";
 import { PosterRow } from "../components/Poster";
 import { StarIcon } from "../components/icons";
 
@@ -226,8 +225,6 @@ export function Profile({
           Log out
         </button>
       </div>
-
-      <Attribution />
     </>
   );
 }
