@@ -1,11 +1,18 @@
 # rip tv time
 
-TV Time is shutting down. **rip tv time** is a small, self-hostable app that
-reads your exported TV Time data and gives you back the experience: your shows
-and movies as poster grids, watch stats, statuses, search, and tracking — in a
-TV Time-style responsive PWA.
+**rip tv time** is a small, **self-hostable, open-source replacement for TV
+Time**. It reads your exported TV Time data and gives you back the experience:
+your shows and movies as poster grids, watch stats, statuses, search, and
+tracking — in a TV Time-style responsive PWA.
 
-▶️ **Live demo:** https://rip-tv-time.choub.workers.dev (tap **Try the demo**)
+> Independent project — **not affiliated with, endorsed by, or connected to TV
+> Time or Whip Media**. “TV Time” is referenced only to describe the data this
+> app imports. Meant to be **self-hosted on your own Cloudflare account.**
+
+▶️ **Live demo:** https://rip-tv-time.choub.workers.dev — it's **invite-only and
+read-only** (it holds no real personal data). Use the **Try the demo** button, or
+sign in with the demo address **`demo@demo.com`** to look around. To use it for
+real, **host your own** (see below).
 
 - 📦 **Import** your `tv-time-export.zip` (from
   [tv-time-liberator](https://github.com/hobo-Ware/tv-time-liberator)) and/or your
@@ -22,6 +29,28 @@ TV Time-style responsive PWA.
 - ☁️ Runs on **Cloudflare Workers + D1** — free tier is plenty ($0/mo)
 
 Fully open source (MIT).
+
+## Host your own (≈5 minutes, $0)
+
+The demo is read-only — to actually use it, run your own copy on **your**
+Cloudflare account. There's no one-click button (a deploy needs its own D1
+database, secrets and a migration, which a button can't set up), but it's short:
+
+```bash
+git clone https://github.com/choubari/rip-tv-time && cd rip-tv-time
+npm install
+npx wrangler login                                   # your Cloudflare account
+npx wrangler d1 create rip_tv_time                   # paste database_id into wrangler.jsonc
+npm run db:migrate:remote                            # create tables
+printf 'YOUR_TMDB_KEY' | npx wrangler secret put TMDB_API_KEY
+npm run deploy                                        # → https://rip-tv-time.<you>.workers.dev
+```
+
+That's the minimum (posters + search). For real email login, an invite-only
+public instance, a demo account, and the optional TVDB fallback, see
+[Deploy to Cloudflare](#deploy-to-cloudflare-free) below. Prefer to just poke
+around first? [Quick start (local)](#quick-start-local) runs everything with one
+`npm run dev`.
 
 ## Tech stack
 
@@ -177,6 +206,24 @@ schema.sql     D1 schema
 ## Re-skin
 
 Change `--primary` in `src/client/theme.css` (default: TV Time-style green).
+
+## Legal, privacy & data
+
+- **No copyrighted media is stored or redistributed.** There is no video, and
+  posters/artwork are **hotlinked from TMDB/TVDB at runtime** — never bundled or
+  cached in this repo. There is nothing here to issue a DMCA takedown against.
+- **Metadata is fetched live** from TMDB and TheTVDB using **your own API key**
+  (each deploy calls the APIs directly); this project redistributes none of their
+  data.
+- **Attribution** to TMDB (with logo) and TheTVDB is shown in-app (Profile /
+  sign-in footer), as their API terms require. _This product uses the TMDB API
+  but is not endorsed or certified by TMDB._
+- **Not affiliated with TV Time / Whip Media.** The name is used only to describe
+  the exported data the app imports.
+- **Privacy:** your email is used solely to send the magic-link sign-in; your
+  library is scoped to your account and never shared. Every API endpoint is
+  per-user isolated, and the public demo is invite-only and read-only with no
+  real personal data.
 
 ## License
 

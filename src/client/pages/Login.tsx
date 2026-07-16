@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../lib/api";
+import { Attribution } from "../components/Attribution";
 
 export function Login({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState("");
@@ -91,6 +92,7 @@ export function Login({ onDone }: { onDone: () => void }) {
           </form>
         )}
       </div>
+      <Attribution />
     </div>
   );
 }
