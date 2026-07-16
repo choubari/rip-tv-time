@@ -183,6 +183,21 @@ Titles carry TVDB/IMDB ids from the export and are resolved to TMDB for artwork
 season/episode metadata). Unmatched titles can be fixed manually via
 **Profile → Fix missing posters** (paste the correct TMDB id).
 
+> **Note — some titles won't auto-resolve and need a manual id.** Automatic
+> matching can't always find the right entry, most often for:
+>
+> - **translated / localized titles** — the export stores TV Time's own title
+>   (e.g. an English name for a Korean or Turkish show) which may not match any
+>   TMDB/TVDB entry;
+> - **titles that share a name** with other shows/movies (ambiguous matches);
+> - shows that exist on **TVDB but not TMDB** (or vice-versa).
+>
+> For these, open the title (or **Profile → Fix missing posters**) and paste the
+> correct **TMDB or TVDB id** (pick the source in the dropdown). Find it on
+> [themoviedb.org](https://www.themoviedb.org) or [thetvdb.com](https://thetvdb.com)
+> — the id is the number in the URL (e.g. `/tv/1396`). A manually set id is
+> **pinned**, so the resolver never overrides it, even on re-import.
+
 ## Scripts
 
 ```bash
