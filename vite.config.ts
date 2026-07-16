@@ -14,10 +14,11 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icon-192.png", "icon-512.png"],
       workbox: {
-        // SPA fallback (the piece that was missing and broke reloads): serve
-        // index.html for client routes, never intercept the API, and always
-        // drop stale precaches so we don't get into cache-mismatch loops.
-        navigateFallback: "/index.html",
+        // SPA fallback: serve the app shell for client routes. Use "/" (not
+        // "/index.html") because Cloudflare's asset server 307-redirects
+        // /index.html -> /, which broke reloads on deep links. Never intercept
+        // the API, and drop stale precaches to avoid cache-mismatch loops.
+        navigateFallback: "/",
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,

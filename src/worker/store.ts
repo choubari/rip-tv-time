@@ -459,7 +459,7 @@ export async function getLibrary(
             (SELECT COUNT(*) FROM watched_episodes w WHERE w.user_id = l.user_id AND w.title_id = l.title_id AND w.season > 0) AS stored_total
      FROM library l JOIN titles t ON t.id = l.title_id
      WHERE l.user_id = ? ${where}
-     ORDER BY l.last_watched_at DESC NULLS LAST, l.added_at DESC NULLS LAST, t.name COLLATE NOCASE ASC`,
+     ORDER BY l.last_watched_at DESC NULLS LAST, l.added_at DESC NULLS LAST, t.rowid ASC`,
   );
   const { results } = await (
     kind ? stmt.bind(userId, kind) : stmt.bind(userId)
@@ -536,7 +536,7 @@ export async function getLists(
        FROM list_items li JOIN titles t ON t.id = li.title_id
        LEFT JOIN library lib ON lib.title_id = t.id AND lib.user_id = ?
        WHERE li.list_id = ?
-       ORDER BY lib.last_watched_at DESC NULLS LAST, lib.added_at DESC NULLS LAST, t.name COLLATE NOCASE ASC`,
+       ORDER BY lib.last_watched_at DESC NULLS LAST, lib.added_at DESC NULLS LAST, t.rowid ASC`,
     )
       .bind(userId, userId, l.id)
       .all<any>();
