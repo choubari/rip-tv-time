@@ -296,6 +296,16 @@ img {
   justify-content: center;
   padding: 24px;
 }
+/* Login: center the card in the available space, attribution as a real footer. */
+.login-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.login-page .center-screen {
+  min-height: 0;
+  flex: 1;
+}
 .card {
   background: var(--bg-elev);
   border: 1px solid var(--border);
