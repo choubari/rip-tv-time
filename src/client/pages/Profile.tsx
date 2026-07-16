@@ -377,17 +377,18 @@ function RelinkRow({
   item: { ref: number; name: string; kind: string };
   onDone: () => void;
 }) {
-  const [tmdbId, setTmdbId] = useState("");
+  const [idText, setIdText] = useState("");
+  const [source, setSource] = useState<"tmdb" | "tvdb">("tmdb");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(false);
 
   async function save() {
-    const n = parseInt(tmdbId.replace(/\D/g, ""), 10);
+    const n = parseInt(idText.replace(/\D/g, ""), 10);
     if (!n) return;
     setBusy(true);
     setErr(false);
     try {
-      const r = await api.relink(item.ref, n);
+      const r = await api.relink(item.ref, n, source);
       if (r.ok) onDone();
       else setErr(true);
     } catch {
@@ -412,30 +413,43 @@ function RelinkRow({
           {item.name}
         </Link>
         <a
-          href={`https://www.themoviedb.org/search?query=${encodeURIComponent(item.name)}`}
+          href={
+            source === "tvdb"
+              ? `https://thetvdb.com/search?query=${encodeURIComponent(item.name)}`
+              : `https://www.themoviedb.org/search?query=${encodeURIComponent(item.name)}`
+          }
           target="_blank"
           rel="noreferrer"
           className="muted"
           style={{ fontSize: 12, marginLeft: 8 }}
         >
-          find on TMDB ↗
+          find on {source === "tvdb" ? "TVDB" : "TMDB"} ↗
         </a>
       </div>
+      <select
+        className="input"
+        style={{ width: 68, padding: "6px 4px" }}
+        value={source}
+        onChange={(e) => setSource(e.target.value as "tmdb" | "tvdb")}
+      >
+        <option value="tmdb">TMDB</option>
+        <option value="tvdb">TVDB</option>
+      </select>
       <input
         className="input"
         style={{
-          width: 90,
+          width: 78,
           padding: "6px 8px",
           borderColor: err ? "var(--primary)" : undefined,
         }}
-        placeholder="TMDB id"
-        value={tmdbId}
-        onChange={(e) => setTmdbId(e.target.value)}
+        placeholder={source === "tvdb" ? "TVDB id" : "TMDB id"}
+        value={idText}
+        onChange={(e) => setIdText(e.target.value)}
       />
       <button
         className="chip"
         style={{ background: "var(--primary)", color: "#fff" }}
-        disabled={busy || !tmdbId.trim()}
+        disabled={busy || !idText.trim()}
         onClick={save}
       >
         {busy ? "…" : "Save"}

@@ -259,6 +259,20 @@ async function fetchDetail(
   return kind === "show" ? shapeTv(d) : shapeMovie(d);
 }
 
+/** Look up the full TMDB metadata for a TheTVDB id (via TMDB's /find). */
+export async function fetchByTvdb(
+  key: string | undefined,
+  kind: "show" | "movie",
+  tvdbId: number,
+): Promise<TmdbMeta | null> {
+  const found = await tmdb<any>(key, `/find/${tvdbId}`, {
+    external_source: "tvdb_id",
+  });
+  const hit = found?.[kind === "show" ? "tv_results" : "movie_results"]?.[0];
+  if (!hit) return null;
+  return fetchDetail(key, kind, hit.id);
+}
+
 export interface SearchResult {
   kind: "show" | "movie";
   tmdb_id: number;

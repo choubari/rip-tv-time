@@ -102,8 +102,11 @@ export const api = {
   lists: () => req<ListSummary[]>("/api/lists"),
   unmatched: () =>
     req<{ ref: number; name: string; kind: string }[]>("/api/unmatched"),
-  relink: (ref: number, tmdb_id: number) =>
-    req<{ ok: boolean }>("/api/relink", json({ ref, tmdb_id })),
+  relink: (ref: number, id: number, source: "tmdb" | "tvdb" = "tmdb") =>
+    req<{ ok: boolean }>(
+      "/api/relink",
+      json(source === "tvdb" ? { ref, tvdb_id: id } : { ref, tmdb_id: id }),
+    ),
   ensure: (kind: "show" | "movie", tmdb_id: number) =>
     req<{ id: string; ref: number }>(
       "/api/title/ensure",

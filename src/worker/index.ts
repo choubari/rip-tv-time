@@ -227,18 +227,21 @@ app.get("/api/unmatched", requireAuth, async (c) =>
   c.json(await getUnmatched(c.env, c.get("userId"))),
 );
 
-// Manually fix a wrong/missing TMDB match by pasting the TMDB id.
+// Manually fix a wrong/missing match by pasting a TMDB id (default) or a TVDB id.
 app.post(
   "/api/relink",
   requireAuth,
   blockDemo,
   rl((c) => `relink:${c.get("userId")}`, 60, 60),
   async (c) => {
-    const { ref, tmdb_id } = await c.req.json<{
+    const { ref, tmdb_id, tvdb_id } = await c.req.json<{
       ref: number;
-      tmdb_id: number;
+      tmdb_id?: number;
+      tvdb_id?: number;
     }>();
-    const ok = await relinkTitle(c.env, ref, tmdb_id);
+    const ok = tvdb_id
+      ? await relinkTitle(c.env, ref, tvdb_id, "tvdb")
+      : await relinkTitle(c.env, ref, tmdb_id ?? 0, "tmdb");
     return c.json({ ok });
   },
 );

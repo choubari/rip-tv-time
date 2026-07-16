@@ -7,7 +7,12 @@ import type {
   TitleMeta,
 } from "../../shared/types";
 import { effectiveStatus } from "../../shared/types";
-import { resolveMeta, fetchDetail, lastAiredEpisode } from "./tmdb";
+import {
+  resolveMeta,
+  fetchDetail,
+  fetchByTvdb,
+  lastAiredEpisode,
+} from "./tmdb";
 
 /**
  * Fixed-window rate limiter backed by D1. Returns true if the action is allowed.
@@ -471,7 +476,8 @@ export async function getLibrary(
 export async function relinkTitle(
   env: Env,
   ref: number,
-  tmdbId: number,
+  id: number,
+  source: "tmdb" | "tvdb" = "tmdb",
 ): Promise<boolean> {
   const row = await env.DB.prepare(
     "SELECT id, kind FROM titles WHERE rowid = ?",
@@ -479,8 +485,18 @@ export async function relinkTitle(
     .bind(ref)
     .first<{ id: string; kind: "show" | "movie" }>();
   if (!row) return false;
-  const meta = await fetchDetail(await tmdbKey(env), row.kind, tmdbId);
+  const key = await tmdbKey(env);
+  const meta =
+    source === "tvdb"
+      ? await fetchByTvdb(key, row.kind, id)
+      : await fetchDetail(key, row.kind, id);
   if (!meta) return false;
+  // Remember the TVDB id the user provided (drives correct season/episode data).
+  if (source === "tvdb") {
+    await env.DB.prepare("UPDATE titles SET tvdb_id = ? WHERE id = ?")
+      .bind(id, row.id)
+      .run();
+  }
   await env.DB.prepare(
     // The user explicitly chose this id — trust ALL of TMDB's metadata, including
     // the name (a wrong name is metadata to fix just like the poster).
