@@ -69,6 +69,10 @@ export const api = {
       `/api/resolve?limit=${limit}`,
       { method: "POST" },
     ),
+  retryResolve: () =>
+    req<{ ok: boolean; reset: number }>("/api/resolve/retry", {
+      method: "POST",
+    }),
 
   getSettings: () =>
     req<{

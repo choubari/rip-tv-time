@@ -567,7 +567,12 @@ function TmdbKeySettings() {
           disabled={busy}
           onClick={() => {
             setBusy(true);
-            fetchArtwork().finally(() => setBusy(false));
+            // Re-attempt previously-failed matches too (matcher may have improved).
+            api
+              .retryResolve()
+              .catch(() => {})
+              .then(fetchArtwork)
+              .finally(() => setBusy(false));
           }}
         >
           {busy ? "Fetching…" : "Fetch missing posters"}

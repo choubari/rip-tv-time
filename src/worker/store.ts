@@ -281,6 +281,17 @@ export async function tmdbKey(env: Env): Promise<string | undefined> {
   return (await getSetting(env, "tmdb_key")) || env.TMDB_API_KEY || undefined;
 }
 
+/**
+ * Clear the "gave up" flag on every poster-less title so the resolver retries
+ * them (e.g. after improving the matcher). Returns how many were reset.
+ */
+export async function retryUnresolved(env: Env): Promise<number> {
+  const r = await env.DB.prepare(
+    "UPDATE titles SET resolve_failed = 0 WHERE resolve_failed = 1 AND poster_path IS NULL",
+  ).run();
+  return r.meta.changes ?? 0;
+}
+
 /** Resolve TMDB metadata for up to `limit` still-unresolved titles. Returns remaining count. */
 export async function resolveBatch(
   env: Env,

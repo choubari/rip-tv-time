@@ -193,18 +193,19 @@ export async function resolveMeta(
     m.total_episodes != null &&
     m.total_episodes >= w * 0.8 &&
     m.total_episodes <= Math.max(w * 1.5, w + 3);
-  // imdb id is authoritative; tvdb id is authoritative only when name OR count agrees.
+  // imdb/tvdb ids come straight from the (TVDB-based) export, and TMDB's /find is
+  // a direct external-id mapping — so a hit identifies the show exactly. Accept it
+  // regardless of name/count (the export title is often TV Time's own translation,
+  // e.g. "Elite League" for TMDB "University War").
   const acceptable = (m: TmdbMeta, trustExternal: boolean) =>
-    trustExternal
-      ? notWildlyOff(m)
-      : (nameOk(m) && notWildlyOff(m)) || countClose(m);
+    trustExternal ? true : (nameOk(m) && notWildlyOff(m)) || countClose(m);
 
   for (const ext of [
     ids.imdb_id
       ? { external_source: "imdb_id", id: ids.imdb_id, trust: true }
       : null, // imdb is reliable
     ids.tvdb_id
-      ? { external_source: "tvdb_id", id: String(ids.tvdb_id), trust: false }
+      ? { external_source: "tvdb_id", id: String(ids.tvdb_id), trust: true }
       : null,
   ]) {
     if (!ext) continue;

@@ -20,6 +20,7 @@ import { fetchTvdbSeasons } from "./tvdb";
 import {
   seedImport,
   resolveBatch,
+  retryUnresolved,
   getLibrary,
   getTitle,
   getStats,
@@ -193,6 +194,19 @@ app.post(
   async (c) => {
     const limit = Math.min(Number(c.req.query("limit") ?? 40), 50);
     return c.json(await resolveBatch(c.env, limit));
+  },
+);
+
+// Re-attempt every title that previously failed to match (clears the give-up
+// flag; the background resolver then picks them up). Handy after matcher fixes.
+app.post(
+  "/api/resolve/retry",
+  requireAuth,
+  blockDemo,
+  rl((c) => `resolveretry:${c.get("userId")}`, 20, 3600),
+  async (c) => {
+    const reset = await retryUnresolved(c.env);
+    return c.json({ ok: true, reset });
   },
 );
 
