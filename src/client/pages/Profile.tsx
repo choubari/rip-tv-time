@@ -8,7 +8,7 @@ import type {
 } from "../../../shared/types";
 import { TMDB_IMG } from "../../../shared/types";
 import { api } from "../lib/api";
-import { toast } from "../lib/toast";
+import { RelinkHint, RelinkControls } from "../components/RelinkForm";
 import { PosterRow } from "../components/Poster";
 import { StarIcon } from "../components/icons";
 
@@ -196,31 +196,7 @@ export function Profile({
             Fix missing posters{" "}
             <span className="count">{unmatched.length}</span>
           </h2>
-          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-            These titles have no reliable match. Find each on{" "}
-            <a
-              style={{ color: "var(--primary)" }}
-              href="https://www.themoviedb.org"
-              target="_blank"
-              rel="noreferrer"
-            >
-              themoviedb.org
-            </a>{" "}
-            or{" "}
-            <a
-              style={{ color: "var(--primary)" }}
-              href="https://thetvdb.com"
-              target="_blank"
-              rel="noreferrer"
-            >
-              thetvdb.com
-            </a>
-            , copy the id from its URL (TMDB e.g.{" "}
-            <code>
-              /tv/<b>1396</b>
-            </code>
-            ), pick the matching source, paste the id and save.
-          </p>
+          <RelinkHint />
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {unmatched.map((u) => (
               <RelinkRow
@@ -387,32 +363,6 @@ function RelinkRow({
   item: { ref: number; name: string; kind: string };
   onDone: () => void;
 }) {
-  const [idText, setIdText] = useState("");
-  const [source, setSource] = useState<"tmdb" | "tvdb">("tmdb");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(false);
-
-  async function save() {
-    const n = parseInt(idText.replace(/\D/g, ""), 10);
-    if (!n) return;
-    setBusy(true);
-    setErr(false);
-    try {
-      const r = await api.relink(item.ref, n, source);
-      if (r.ok) onDone();
-      else {
-        setErr(true);
-        toast(
-          `No ${source.toUpperCase()} match for id ${n} — check the id and source.`,
-        );
-      }
-    } catch {
-      setErr(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div
       style={{
@@ -421,54 +371,15 @@ function RelinkRow({
         alignItems: "center",
         padding: "6px 0",
         borderBottom: "1px solid var(--border)",
+        flexWrap: "wrap",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <Link to={`/${item.kind}/${item.ref}`} style={{ fontSize: 14 }}>
           {item.name}
         </Link>
-        <a
-          href={
-            source === "tvdb"
-              ? `https://thetvdb.com/search?query=${encodeURIComponent(item.name)}`
-              : `https://www.themoviedb.org/search?query=${encodeURIComponent(item.name)}`
-          }
-          target="_blank"
-          rel="noreferrer"
-          className="muted"
-          style={{ fontSize: 12, marginLeft: 8 }}
-        >
-          find on {source === "tvdb" ? "TVDB" : "TMDB"} ↗
-        </a>
       </div>
-      <select
-        className="input"
-        style={{ width: 68, padding: "6px 4px" }}
-        value={source}
-        onChange={(e) => setSource(e.target.value as "tmdb" | "tvdb")}
-      >
-        <option value="tmdb">TMDB</option>
-        <option value="tvdb">TVDB</option>
-      </select>
-      <input
-        className="input"
-        style={{
-          width: 78,
-          padding: "6px 8px",
-          borderColor: err ? "var(--primary)" : undefined,
-        }}
-        placeholder={source === "tvdb" ? "TVDB id" : "TMDB id"}
-        value={idText}
-        onChange={(e) => setIdText(e.target.value)}
-      />
-      <button
-        className="chip"
-        style={{ background: "var(--primary)", color: "#fff" }}
-        disabled={busy || !idText.trim()}
-        onClick={save}
-      >
-        {busy ? "…" : "Save"}
-      </button>
+      <RelinkControls refId={item.ref} onDone={onDone} />
     </div>
   );
 }
