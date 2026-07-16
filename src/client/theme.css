@@ -296,22 +296,31 @@ img {
   justify-content: center;
   padding: 24px;
 }
-/* Login: card + attribution as one centered column (no huge gap). */
-.login-col {
+/* Login: card centered in the space above, attribution pinned as a page footer. */
+.login-page {
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  max-width: 420px;
 }
-.login-col .card {
-  width: 100%;
-  max-width: 100%;
+.login-page .center-screen {
+  min-height: 0;
+  flex: 1;
 }
-.login-col .attribution {
-  margin: 8px 0 0;
-  max-width: 100%;
+.login-page .attribution {
+  margin: 0;
+  max-width: none;
+  width: 100%;
+  text-align: center;
+  padding: 20px 24px;
+}
+.login-page .attribution p,
+.login-page .attribution .attribution-logos {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.login-page .attribution-logos {
+  justify-content: center;
 }
 .card {
   background: var(--bg-elev);

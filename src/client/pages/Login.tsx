@@ -33,8 +33,8 @@ export function Login({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="center-screen">
-      <div className="login-col">
+    <div className="login-page">
+      <div className="center-screen">
         <div className="card">
           <h1 style={{ marginTop: 0, letterSpacing: "-.5px" }}>
             rip <span style={{ color: "var(--primary)" }}>tv time</span>
@@ -93,8 +93,8 @@ export function Login({ onDone }: { onDone: () => void }) {
             </form>
           )}
         </div>
-        <Attribution />
       </div>
+      <Attribution />
     </div>
   );
 }
