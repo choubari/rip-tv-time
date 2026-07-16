@@ -283,13 +283,11 @@ export interface TitleExtra {
   imdb_id: string | null;
   tmdb_rating: number | null; // 0-10
   tmdb_votes: number | null;
-  imdb_rating: number | null; // 0-10, only when an OMDb key is configured
 }
 
-/** Cast (with photos) + ratings for a title's about page (one TMDB call). */
+/** Cast (with photos) + rating for a title's about page (one TMDB call). */
 export async function fetchExtra(
   key: string | undefined,
-  omdbKey: string | undefined,
   kind: "show" | "movie",
   tmdbId: number,
 ): Promise<TitleExtra> {
@@ -298,7 +296,6 @@ export async function fetchExtra(
     imdb_id: null,
     tmdb_rating: null,
     tmdb_votes: null,
-    imdb_rating: null,
   };
   const d = await tmdb<any>(
     key,
@@ -315,31 +312,12 @@ export async function fetchExtra(
       profile_path: c.profile_path || null,
     }),
   );
-  const imdb_id = d.external_ids?.imdb_id || d.imdb_id || null;
-  const extra: TitleExtra = {
+  return {
     cast,
-    imdb_id,
+    imdb_id: d.external_ids?.imdb_id || d.imdb_id || null,
     tmdb_rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null,
     tmdb_votes: d.vote_count ?? null,
-    imdb_rating: null,
   };
-  // If an OMDb key is configured, fetch the real IMDb rating for that imdb id.
-  if (omdbKey && imdb_id) {
-    try {
-      const res = await fetch(
-        `https://www.omdbapi.com/?apikey=${omdbKey}&i=${imdb_id}`,
-      );
-      const j: any = res.ok ? await res.json() : null;
-      const r =
-        j && j.imdbRating && j.imdbRating !== "N/A"
-          ? Number(j.imdbRating)
-          : null;
-      if (r && !isNaN(r)) extra.imdb_rating = r;
-    } catch {
-      /* ignore — fall back to the TMDB rating */
-    }
-  }
-  return extra;
 }
 
 export interface SearchResult {

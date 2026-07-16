@@ -4,7 +4,6 @@ export interface Env {
   APP_URL: string;
   TMDB_API_KEY?: string;
   TVDB_API_KEY?: string; // optional fallback for season/episode metadata
-  OMDB_API_KEY?: string; // optional: real IMDb ratings on the detail page
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
   // Deployment / access control

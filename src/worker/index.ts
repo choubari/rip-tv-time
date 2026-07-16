@@ -280,16 +280,8 @@ app.get(
         imdb_id: null,
         tmdb_rating: null,
         tmdb_votes: null,
-        imdb_rating: null,
       });
-    return c.json(
-      await fetchExtra(
-        await tmdbKey(c.env),
-        c.env.OMDB_API_KEY,
-        t.kind,
-        t.tmdb_id,
-      ),
-    );
+    return c.json(await fetchExtra(await tmdbKey(c.env), t.kind, t.tmdb_id));
   },
 );
 

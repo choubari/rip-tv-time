@@ -358,35 +358,28 @@ export function Detail() {
               {t.genres.join(" · ")}
             </p>
           )}
-          {extra &&
-            (extra.imdb_rating != null || extra.tmdb_rating != null) && (
-              <div style={{ display: "flex", gap: 16, margin: "12px 0" }}>
-                {extra.imdb_rating != null && (
-                  <a
-                    className="rating-badge"
-                    href={
-                      extra.imdb_id
-                        ? `https://www.imdb.com/title/${extra.imdb_id}/`
-                        : undefined
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <b>IMDb</b> {extra.imdb_rating.toFixed(1)}
-                  </a>
-                )}
-                {extra.tmdb_rating != null && (
-                  <span className="rating-badge">
-                    <b>TMDB</b> {extra.tmdb_rating.toFixed(1)}
-                    {extra.tmdb_votes ? (
-                      <span className="muted" style={{ marginLeft: 4 }}>
-                        ({extra.tmdb_votes.toLocaleString()})
-                      </span>
-                    ) : null}
+          {extra && extra.tmdb_rating != null && (
+            <div style={{ display: "flex", gap: 16, margin: "12px 0" }}>
+              <span className="rating-badge">
+                <b>TMDB</b> {extra.tmdb_rating.toFixed(1)}
+                {extra.tmdb_votes ? (
+                  <span className="muted" style={{ marginLeft: 4 }}>
+                    ({extra.tmdb_votes.toLocaleString()})
                   </span>
-                )}
-              </div>
-            )}
+                ) : null}
+              </span>
+              {extra.imdb_id && (
+                <a
+                  className="rating-badge"
+                  href={`https://www.imdb.com/title/${extra.imdb_id}/`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <b>IMDb</b> ↗
+                </a>
+              )}
+            </div>
+          )}
           {extra && extra.cast.length > 0 && (
             <div style={{ margin: "16px 0" }}>
               <h2 style={{ fontSize: 15, marginBottom: 8 }}>Cast</h2>

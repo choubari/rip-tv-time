@@ -99,7 +99,6 @@ export const api = {
       imdb_id: string | null;
       tmdb_rating: number | null;
       tmdb_votes: number | null;
-      imdb_rating: number | null;
     }>(`/api/t/${ref}/extra`),
   search: (q: string) =>
     req<
