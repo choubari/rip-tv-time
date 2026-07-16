@@ -31,6 +31,7 @@ import {
   setSetting,
   tmdbKey,
   getLists,
+  addToList,
   ensureTitle,
   refOf,
   getUnmatched,
@@ -221,6 +222,19 @@ app.get("/api/stats", requireAuth, async (c) =>
 
 app.get("/api/lists", requireAuth, async (c) =>
   c.json(await getLists(c.env, c.get("userId"))),
+);
+
+// Add a title to a list (creating the list if the name is new).
+app.post(
+  "/api/lists/add",
+  requireAuth,
+  blockDemo,
+  rl((c) => `listadd:${c.get("userId")}`, 120, 60),
+  async (c) => {
+    const { ref, list } = await c.req.json<{ ref: number; list: string }>();
+    const ok = await addToList(c.env, c.get("userId"), ref, list);
+    return c.json({ ok });
+  },
 );
 
 app.get("/api/unmatched", requireAuth, async (c) =>

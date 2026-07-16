@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import type { Status } from "../../../shared/types";
 import { STATUS_LABEL, TMDB_IMG } from "../../../shared/types";
 import type { SeasonData } from "../../worker/tmdb";
 import { api, type TitleDetail } from "../lib/api";
-import { StarIcon, CheckIcon } from "../components/icons";
+import { StarIcon, CheckIcon, MoreIcon } from "../components/icons";
+import { toast } from "../lib/toast";
 import { Loading } from "../components/Loading";
 import { RelinkHint, RelinkControls } from "../components/RelinkForm";
 
@@ -20,7 +21,18 @@ export function Detail() {
     new Map(),
   );
   const [extra, setExtra] = useState<Extra | null>(null);
-  const [tab, setTab] = useState<"about" | "episodes">("episodes");
+  const [sp, setSp] = useSearchParams();
+  const tab: "about" | "episodes" =
+    sp.get("tab") === "about" ? "about" : "episodes";
+  const setTab = (t: "about" | "episodes") =>
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.set("tab", t);
+        return n;
+      },
+      { replace: true },
+    );
   const [modalEp, setModalEp] = useState<{
     season: number;
     ep: SeasonData["episodes"][number];
@@ -267,7 +279,18 @@ export function Detail() {
           />
         )}
         <div className="detail-meta">
-          <h1>{t.name}</h1>
+          <div className="detail-title-row">
+            <h1>{t.name}</h1>
+            {t.tracked && (
+              <DetailActions
+                kind={t.kind}
+                refId={t.ref}
+                status={liveStatus}
+                isFavorite={t.is_favorite}
+                onPatch={patch}
+              />
+            )}
+          </div>
           {t.original_name && (
             <p
               className="muted"
@@ -310,45 +333,6 @@ export function Detail() {
 
       {(!isShow || tab === "about") && (
         <div style={{ padding: 16 }}>
-          {t.tracked && (
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-                marginBottom: 14,
-                flexWrap: "wrap",
-              }}
-            >
-              {/* Watching / paused / finished / not-started are derived from your
-                  progress automatically. The user only sets these overrides —
-                  with explicit verbs (Stop / Resume), not toggles. */}
-              {t.status !== "stopped" && t.status !== "watch_next" && (
-                <>
-                  <button
-                    className="chip"
-                    onClick={() => patch({ status: "watch_next" })}
-                  >
-                    + Watch later
-                  </button>
-                  <button
-                    className="chip"
-                    onClick={() => patch({ status: "stopped" })}
-                  >
-                    ■ Stop watching
-                  </button>
-                </>
-              )}
-              <div style={{ flex: 1 }} />
-              <button
-                className="btn ghost"
-                style={{ color: t.is_favorite ? "var(--primary)" : undefined }}
-                onClick={() => patch({ is_favorite: !t.is_favorite })}
-              >
-                <StarIcon filled={t.is_favorite} />
-              </button>
-            </div>
-          )}
           {t.overview ? (
             <p style={{ lineHeight: 1.55 }}>{t.overview}</p>
           ) : (
@@ -492,7 +476,9 @@ export function Detail() {
         />
       )}
 
-      {(!t.tracked || t.status === "stopped" || t.status === "watch_next") && (
+      {(!t.tracked ||
+        (isShow && (t.status === "stopped" || t.status === "watch_next")) ||
+        (!isShow && liveStatus !== "finished")) && (
         <div style={{ height: 84 }} />
       )}
       {!t.tracked ? (
@@ -509,7 +495,7 @@ export function Detail() {
             + Track this {isShow ? "show" : "movie"}
           </button>
         </div>
-      ) : t.status === "stopped" || t.status === "watch_next" ? (
+      ) : isShow && (t.status === "stopped" || t.status === "watch_next") ? (
         <div className="track-footer">
           <button
             className="btn"
@@ -519,8 +505,150 @@ export function Detail() {
             ▶ Resume watching
           </button>
         </div>
+      ) : !isShow && liveStatus !== "finished" ? (
+        // Movies don't have episodes/resume — the action is simply "mark watched".
+        <div className="track-footer">
+          <button
+            className="btn"
+            style={{ width: "100%" }}
+            onClick={() => patch({ status: "finished" })}
+          >
+            ✓ Mark as watched
+          </button>
+        </div>
       ) : null}
     </>
+  );
+}
+
+// Favorite toggle + a three-dots menu (add to list / watch later / stop / resume)
+// shown next to the title. Replaces the action chips that used to be in About.
+function DetailActions({
+  kind,
+  refId,
+  status,
+  isFavorite,
+  onPatch,
+}: {
+  kind: "show" | "movie";
+  refId: number;
+  status: Status;
+  isFavorite: boolean;
+  onPatch: (p: Record<string, unknown>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [lists, setLists] = useState<{ id: number; name: string }[]>([]);
+  const isShow = kind === "show";
+
+  function openMenu() {
+    setOpen((o) => !o);
+    if (lists.length === 0)
+      api
+        .lists()
+        .then((ls) => setLists(ls.map((l) => ({ id: l.id, name: l.name }))))
+        .catch(() => {});
+  }
+  async function addTo(name: string) {
+    await api.addToList(refId, name);
+    toast(`Added to “${name}”`, "success");
+    setOpen(false);
+    setListOpen(false);
+  }
+  function newList() {
+    const name = window.prompt("New list name")?.trim();
+    if (name) addTo(name);
+  }
+
+  return (
+    <div className="detail-actions">
+      <button
+        className="icon-btn"
+        title={isFavorite ? "Remove favorite" : "Add to favorites"}
+        style={{ color: isFavorite ? "var(--primary)" : undefined }}
+        onClick={() => onPatch({ is_favorite: !isFavorite })}
+      >
+        <StarIcon filled={isFavorite} />
+      </button>
+      <div style={{ position: "relative" }}>
+        <button className="icon-btn" title="More" onClick={openMenu}>
+          <MoreIcon />
+        </button>
+        {open && (
+          <>
+            <div className="menu-scrim" onClick={() => setOpen(false)} />
+            <div className="menu">
+              <button
+                className="menu-item"
+                onClick={() => setListOpen((v) => !v)}
+              >
+                Add to list ▸
+              </button>
+              {listOpen && (
+                <div className="menu-sub">
+                  {lists.map((l) => (
+                    <button
+                      key={l.id}
+                      className="menu-item"
+                      onClick={() => addTo(l.name)}
+                    >
+                      {l.name}
+                    </button>
+                  ))}
+                  <button className="menu-item" onClick={newList}>
+                    + New list…
+                  </button>
+                </div>
+              )}
+              {status !== "watch_next" && (
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    onPatch({ status: "watch_next" });
+                    setOpen(false);
+                  }}
+                >
+                  Watch later
+                </button>
+              )}
+              {isShow &&
+                (status === "stopped" || status === "watch_next" ? (
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      onPatch({ status: "watching" });
+                      setOpen(false);
+                    }}
+                  >
+                    Resume watching
+                  </button>
+                ) : (
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      onPatch({ status: "stopped" });
+                      setOpen(false);
+                    }}
+                  >
+                    Stop watching
+                  </button>
+                ))}
+              {!isShow && status !== "finished" && (
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    onPatch({ status: "finished" });
+                    setOpen(false);
+                  }}
+                >
+                  Mark as watched
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -1,12 +1,13 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { SearchResult } from "../../worker/tmdb";
 import { TMDB_IMG, effectiveStatus, type Status } from "../../../shared/types";
 import { StatusBar } from "../components/Poster";
 import { api } from "../lib/api";
 
 export function Discover() {
-  const [q, setQ] = useState("");
+  const [sp, setSp] = useSearchParams();
+  const [q, setQ] = useState(sp.get("q") ?? "");
   type Row = SearchResult & {
     tracked_ref: number | null;
     status: string | null;
@@ -18,15 +19,35 @@ export function Discover() {
   const [opening, setOpening] = useState<number | null>(null);
   const nav = useNavigate();
 
-  async function run(e: React.FormEvent) {
-    e.preventDefault();
-    if (!q.trim()) return;
+  async function search(query: string) {
+    const term = query.trim();
+    if (!term) return;
     setBusy(true);
     try {
-      setResults(await api.search(q));
+      setResults(await api.search(term));
     } finally {
       setBusy(false);
     }
+  }
+
+  // Restore the last search from the URL (so ?q=… survives reloads / back nav).
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    const initial = sp.get("q");
+    if (initial) search(initial);
+  }, []);
+
+  async function run(e: React.FormEvent) {
+    e.preventDefault();
+    if (!q.trim()) return;
+    setSp((prev) => {
+      const n = new URLSearchParams(prev);
+      n.set("q", q.trim());
+      return n;
+    });
+    search(q);
   }
 
   // Tapping a result opens its show/movie page (creating the title record if

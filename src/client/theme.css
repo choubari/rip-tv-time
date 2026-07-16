@@ -822,3 +822,74 @@ img {
   padding: 2px 6px;
   border-radius: 4px;
 }
+
+/* Detail: title-row actions + three-dots menu */
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.detail-title-row h1 {
+  flex: 1;
+  min-width: 0;
+}
+.detail-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+}
+.icon-btn:hover {
+  background: var(--card);
+}
+.menu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  z-index: 41;
+  background: var(--bg-elev-2, #1c1c1e);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 180px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.menu-item:hover {
+  background: var(--card);
+}
+.menu-sub {
+  max-height: 220px;
+  overflow-y: auto;
+  border-left: 2px solid var(--border);
+  margin: 2px 0 2px 8px;
+}
+.menu-sub .menu-item {
+  font-size: 13px;
+  padding: 8px 10px;
+}

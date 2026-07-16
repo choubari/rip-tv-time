@@ -66,6 +66,13 @@ export const UserIcon = svg(
   </>,
 );
 export const CheckIcon = svg(<path d="M20 6 9 17l-5-5" />);
+export const MoreIcon = svg(
+  <>
+    <circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none" />
+  </>,
+);
 export const StarIcon = ({
   size = 24,
   filled = false,

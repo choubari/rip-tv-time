@@ -594,6 +594,45 @@ export async function getLists(
   return out;
 }
 
+/** Add a title (by ref) to a user's list — creating the list if name is new. */
+export async function addToList(
+  env: Env,
+  userId: string,
+  ref: number,
+  listName: string,
+): Promise<boolean> {
+  const title = await env.DB.prepare("SELECT id FROM titles WHERE rowid = ?")
+    .bind(ref)
+    .first<{ id: string }>();
+  if (!title) return false;
+  const name = listName.trim();
+  if (!name) return false;
+  let list = await env.DB.prepare(
+    "SELECT id FROM lists WHERE user_id = ? AND name = ?",
+  )
+    .bind(userId, name)
+    .first<{ id: number }>();
+  if (!list) {
+    const res = await env.DB.prepare(
+      "INSERT INTO lists (user_id, name) VALUES (?, ?)",
+    )
+      .bind(userId, name)
+      .run();
+    list = { id: res.meta.last_row_id as number };
+  }
+  const ord = await env.DB.prepare(
+    "SELECT COALESCE(MAX(ordering), -1) + 1 AS n FROM list_items WHERE list_id = ?",
+  )
+    .bind(list.id)
+    .first<{ n: number }>();
+  await env.DB.prepare(
+    "INSERT INTO list_items (list_id, title_id, ordering) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+  )
+    .bind(list.id, title.id, ord?.n ?? 0)
+    .run();
+  return true;
+}
+
 export async function getTitle(
   env: Env,
   userId: string,

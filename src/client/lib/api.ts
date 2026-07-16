@@ -111,6 +111,8 @@ export const api = {
     >(`/api/search?q=${encodeURIComponent(q)}`),
 
   lists: () => req<ListSummary[]>("/api/lists"),
+  addToList: (ref: number, list: string) =>
+    req<{ ok: boolean }>("/api/lists/add", json({ ref, list })),
   unmatched: () =>
     req<{ ref: number; name: string; kind: string }[]>("/api/unmatched"),
   relink: (ref: number, id: number, source: "tmdb" | "tvdb" = "tmdb") =>
