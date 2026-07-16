@@ -13,7 +13,7 @@ import {
   sessionEmail,
 } from "./auth";
 import type { Context, Next } from "hono";
-import { sendMagicLink } from "./email";
+import { sendMagicLink, sendInvite } from "./email";
 import { parseZips } from "./import";
 import { search, fetchSeasons, fetchExtra } from "./tmdb";
 import { fetchTvdbSeasons } from "./tvdb";
@@ -146,12 +146,15 @@ app.get("/api/admin/allowed", requireAuth, requireAdmin, async (c) => {
 app.post("/api/admin/allowed", requireAuth, requireAdmin, async (c) => {
   const { email } = await c.req.json<{ email?: string }>();
   if (!email) return c.json({ error: "email required" }, 400);
+  const addr = email.toLowerCase().trim();
   await c.env.DB.prepare(
     "INSERT INTO allowed_emails (email) VALUES (?) ON CONFLICT DO NOTHING",
   )
-    .bind(email.toLowerCase().trim())
+    .bind(addr)
     .run();
-  return c.json({ ok: true });
+  // Best-effort: email the invitee the app link so they can sign in.
+  const { delivered } = await sendInvite(c.env, addr);
+  return c.json({ ok: true, delivered });
 });
 app.delete("/api/admin/allowed", requireAuth, requireAdmin, async (c) => {
   const { email } = await c.req.json<{ email?: string }>();
