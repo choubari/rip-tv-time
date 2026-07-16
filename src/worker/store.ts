@@ -491,22 +491,24 @@ export async function relinkTitle(
     source === "tvdb"
       ? await fetchByTvdb(key, row.kind, id)
       : await fetchDetail(key, row.kind, id);
-  // TVDB id with no TMDB counterpart (common for regional shows): fall back to
-  // TVDB's own metadata so the title still gets a name, poster and overview.
-  if (!meta && source === "tvdb" && row.kind === "show") {
+  // For a TVDB relink, fill in from TVDB directly when TMDB has no counterpart
+  // (regional shows) OR when the mapped TMDB entry has no poster (partial TMDB
+  // entries, e.g. tvdb 465668 → a poster-less "Solo Leveling" stub). Otherwise
+  // the title loops straight back into "Fix missing posters".
+  if (source === "tvdb" && row.kind === "show" && !meta?.poster_path) {
     const s = await fetchTvdbSeries(env.TVDB_API_KEY, id);
     if (s)
       meta = {
-        tmdb_id: 0,
-        name: s.name,
-        original_name: null,
-        overview: s.overview,
+        tmdb_id: meta?.tmdb_id ?? 0,
+        name: meta?.name ?? s.name,
+        original_name: meta?.original_name ?? null,
+        overview: meta?.overview ?? s.overview,
         poster_path: s.poster_path,
-        backdrop_path: null,
-        release_date: s.first_air_date,
-        runtime: null,
-        total_episodes: null,
-        genres: [],
+        backdrop_path: meta?.backdrop_path ?? null,
+        release_date: meta?.release_date ?? s.first_air_date,
+        runtime: meta?.runtime ?? null,
+        total_episodes: meta?.total_episodes ?? null,
+        genres: meta?.genres ?? [],
       };
   }
   if (!meta) return false;
