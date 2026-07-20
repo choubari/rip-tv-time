@@ -15,7 +15,7 @@ import {
 import type { Context, Next } from "hono";
 import { sendMagicLink, sendInvite } from "./email";
 import { parseZips } from "./import";
-import { search, fetchSeasons, fetchExtra } from "./tmdb";
+import { search, fetchSeasons, fetchExtra, fetchPerson } from "./tmdb";
 import { fetchTvdbSeasons } from "./tvdb";
 import {
   seedImport,
@@ -299,6 +299,21 @@ app.get(
         tmdb_votes: null,
       });
     return c.json(await fetchExtra(await tmdbKey(c.env), t.kind, t.tmdb_id));
+  },
+);
+
+// An actor's profile + acting filmography (newest first). Powers the person page
+// you reach by tapping a cast member; each credit links back to a show/movie you
+// can open and track.
+app.get(
+  "/api/person/:id",
+  requireAuth,
+  rl((c) => `person:${c.get("userId")}`, 300, 60),
+  async (c) => {
+    const id = Number(c.req.param("id"));
+    if (!Number.isFinite(id)) return c.json({ error: "not found" }, 404);
+    const p = await fetchPerson(await tmdbKey(c.env), id);
+    return p ? c.json(p) : c.json({ error: "not found" }, 404);
   },
 );
 

@@ -274,6 +274,7 @@ export async function fetchByTvdb(
 }
 
 export interface CastMember {
+  id: number;
   name: string;
   character: string | null;
   profile_path: string | null;
@@ -307,6 +308,7 @@ export async function fetchExtra(
   if (!d) return empty;
   const cast: CastMember[] = (d.credits?.cast ?? []).slice(0, 20).map(
     (c: any): CastMember => ({
+      id: c.id,
       name: c.name,
       character: c.character || null,
       profile_path: c.profile_path || null,
@@ -317,6 +319,72 @@ export async function fetchExtra(
     imdb_id: d.external_ids?.imdb_id || d.imdb_id || null,
     tmdb_rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null,
     tmdb_votes: d.vote_count ?? null,
+  };
+}
+
+export interface PersonCredit {
+  kind: "show" | "movie";
+  tmdb_id: number;
+  name: string;
+  poster_path: string | null;
+  date: string | null; // release / first-air date (YYYY-MM-DD)
+  character: string | null;
+}
+export interface PersonDetail {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  biography: string | null;
+  birthday: string | null;
+  known_for_department: string | null;
+  place_of_birth: string | null;
+  credits: PersonCredit[]; // acting roles, newest first
+}
+
+/** A person (actor) + their acting filmography, newest first. */
+export async function fetchPerson(
+  key: string | undefined,
+  personId: number,
+): Promise<PersonDetail | null> {
+  const d = await tmdb<any>(key, `/person/${personId}`, {
+    append_to_response: "combined_credits",
+  });
+  if (!d?.id) return null;
+  const seen = new Set<string>();
+  const credits: PersonCredit[] = (d.combined_credits?.cast ?? [])
+    .filter((c: any) => c.media_type === "tv" || c.media_type === "movie")
+    .map((c: any): PersonCredit => {
+      const kind = c.media_type === "tv" ? "show" : "movie";
+      return {
+        kind,
+        tmdb_id: c.id,
+        name: c.name ?? c.title ?? "Untitled",
+        poster_path: c.poster_path || null,
+        date: c.first_air_date || c.release_date || null,
+        character: c.character || null,
+      };
+    })
+    .filter((c: PersonCredit) => {
+      const k = `${c.kind}:${c.tmdb_id}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .sort((a: PersonCredit, b: PersonCredit) => {
+      // Newest first; undated (upcoming/unknown) sorted to the top.
+      if (!a.date) return b.date ? -1 : 0;
+      if (!b.date) return 1;
+      return b.date.localeCompare(a.date);
+    });
+  return {
+    id: d.id,
+    name: d.name,
+    profile_path: d.profile_path || null,
+    biography: d.biography || null,
+    birthday: d.birthday || null,
+    known_for_department: d.known_for_department || null,
+    place_of_birth: d.place_of_birth || null,
+    credits,
   };
 }
 

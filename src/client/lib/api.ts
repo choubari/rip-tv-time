@@ -4,7 +4,7 @@ import type {
   Stats,
   UserProfile,
 } from "../../../shared/types";
-import type { SearchResult, SeasonData } from "../../worker/tmdb";
+import type { SearchResult, SeasonData, PersonDetail } from "../../worker/tmdb";
 import { toast } from "./toast";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -92,6 +92,7 @@ export const api = {
   extra: (ref: string | number) =>
     req<{
       cast: {
+        id: number;
         name: string;
         character: string | null;
         profile_path: string | null;
@@ -100,6 +101,7 @@ export const api = {
       tmdb_rating: number | null;
       tmdb_votes: number | null;
     }>(`/api/t/${ref}/extra`),
+  person: (id: string | number) => req<PersonDetail>(`/api/person/${id}`),
   search: (q: string) =>
     req<
       (SearchResult & {

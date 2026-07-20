@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useParams,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import type { Status } from "../../../shared/types";
 import { STATUS_LABEL, TMDB_IMG } from "../../../shared/types";
 import type { SeasonData } from "../../worker/tmdb";
@@ -370,7 +375,7 @@ export function Detail() {
               <h2 style={{ fontSize: 15, marginBottom: 8 }}>Cast</h2>
               <div className="cast-row">
                 {extra.cast.map((c, i) => (
-                  <div className="cast-card" key={i}>
+                  <Link className="cast-card" key={i} to={`/person/${c.id}`}>
                     {c.profile_path ? (
                       <img
                         className="cast-photo"
@@ -387,7 +392,7 @@ export function Detail() {
                     {c.character && (
                       <div className="cast-role muted">{c.character}</div>
                     )}
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

@@ -12,6 +12,7 @@ import { Discover } from "./pages/Discover";
 import { Profile } from "./pages/Profile";
 import { Detail } from "./pages/Detail";
 import { Collection } from "./pages/Collection";
+import { Person } from "./pages/Person";
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null | undefined>(undefined); // undefined = loading
@@ -104,6 +105,7 @@ export default function App() {
         <Route path="/import" element={<ImportPage onDone={refresh} />} />
         <Route path="/show/:ref" element={<Detail />} />
         <Route path="/movie/:ref" element={<Detail />} />
+        <Route path="/person/:id" element={<Person />} />
         <Route path="/list/:id" element={<Collection mode="list" />} />
         <Route
           path="/favorites/:kind"
