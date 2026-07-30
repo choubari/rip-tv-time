@@ -13,6 +13,8 @@
     "binding": "ASSETS",
   },
   "observability": { "enabled": true },
+  // Keep the *.workers.dev URL live alongside the custom domain.
+  "workers_dev": true,
   // Custom domain: auto-provisions DNS + TLS cert on the choubari.com zone.
   "routes": [{ "pattern": "tvtrack.choubari.com", "custom_domain": true }],
   // 3×/day refresh: posters + detect newly-aired episodes (finished → watching).
