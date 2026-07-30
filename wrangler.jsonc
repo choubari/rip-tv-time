@@ -13,6 +13,8 @@
     "binding": "ASSETS",
   },
   "observability": { "enabled": true },
+  // Custom domain: auto-provisions DNS + TLS cert on the choubari.com zone.
+  "routes": [{ "pattern": "tvtrack.choubari.com", "custom_domain": true }],
   // 3×/day refresh: posters + detect newly-aired episodes (finished → watching).
   "triggers": { "crons": ["0 */8 * * *"] },
   "d1_databases": [
@@ -24,7 +26,7 @@
   ],
   "vars": {
     // App base URL used inside magic-link emails.
-    "APP_URL": "https://rip-tv-time.choub.workers.dev",
+    "APP_URL": "https://tvtrack.choubari.com",
     // Invite-only: only ADMIN_EMAIL, DEMO_EMAIL, and invited emails can sign in.
     "INVITE_ONLY": "true",
     // Secrets (set with `wrangler secret put`): TMDB_API_KEY, RESEND_API_KEY, MAIL_FROM
