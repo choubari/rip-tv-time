@@ -842,9 +842,24 @@ export async function toggleEpisode(
   )
     .bind(userId, titleId, season, episode, watched ? 1 : 0)
     .run();
+  // Ticking promotes a show out of "haven't started" (there is progress now, so
+  // the base status must be "watching" for effectiveStatus to group it);
+  // unticking demotes one out of "finished" (it is no longer fully watched).
+  // Both are explicit user actions, so we never infer either from episode
+  // counts alone. "watch next" (Watch later) and "stopped" are deliberately
+  // left alone: those buckets keep their progress bar (see StatusBar).
   if (watched)
     await env.DB.prepare(
-      "UPDATE library SET last_watched_at = datetime('now') WHERE user_id = ? AND title_id = ?",
+      `UPDATE library SET last_watched_at = datetime('now'),
+              status = CASE WHEN status = 'not_started' THEN 'watching' ELSE status END
+       WHERE user_id = ? AND title_id = ?`,
+    )
+      .bind(userId, titleId)
+      .run();
+  else
+    await env.DB.prepare(
+      `UPDATE library SET status = 'watching'
+       WHERE user_id = ? AND title_id = ? AND status = 'finished'`,
     )
       .bind(userId, titleId)
       .run();

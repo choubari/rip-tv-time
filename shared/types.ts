@@ -58,8 +58,13 @@ export function effectiveStatus(item: {
   total_episodes?: number | null;
   last_watched_at?: string | null;
 }): Status {
-  if (item.status !== "watching") return item.status;
   const watched = item.episodes_watched ?? 0;
+  // "Haven't started" only holds while nothing is watched: once an episode is
+  // ticked the show is in progress, even if the stored base status still reads
+  // not_started (rows written before toggleEpisode promoted it).
+  const inProgress =
+    item.status === "watching" || (item.status === "not_started" && watched > 0);
+  if (!inProgress) return item.status;
   if (watched === 0) return "not_started";
   const total = item.total_episodes ?? 0;
   // All episodes watched → finished (totals now come from the export, so this is

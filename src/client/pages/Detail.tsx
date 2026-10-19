@@ -237,7 +237,9 @@ export function Detail() {
       return t.status;
     if (total > 0 && watchedRegular >= total) return "finished";
     if (watchedRegular === 0) return "not_started";
-    if (t.status === "finished") return "watching"; // was finished, now some unmarked
+    // Any progress means the show is in progress — covers both "was finished,
+    // now some unmarked" and "was haven't-started, first episode just ticked".
+    if (t.status === "finished" || t.status === "not_started") return "watching";
     return t.status;
   })();
 
