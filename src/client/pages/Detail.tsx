@@ -197,6 +197,21 @@ export function Detail() {
     api.update(id, p);
   };
 
+  // Undo an accidental "Track": drop the library row and any progress, so the
+  // page falls back to its untracked state (the "+ Track this…" footer button).
+  async function untrack() {
+    setWatched(new Set());
+    setWatchedDates(new Map());
+    setT({
+      ...t,
+      tracked: false,
+      status: isShow ? "not_started" : "watch_next",
+      is_favorite: false,
+    } as TitleDetail);
+    await api.untrack(id);
+    toast("Removed from your library", "success");
+  }
+
   async function setEp(season: number, episode: number, on: boolean) {
     const key = `${season}:${episode}`;
     setWatched((cur) => {
@@ -295,6 +310,7 @@ export function Detail() {
                 status={liveStatus}
                 isFavorite={t.is_favorite}
                 onPatch={patch}
+                onUntrack={untrack}
               />
             )}
           </div>
@@ -337,6 +353,27 @@ export function Detail() {
           </button>
         </div>
       ) : null}
+
+      {/* Movies have no episodes, so give them a single watched toggle mirroring
+          the episode circle — one tap to mark/unmark, easy to see the state. */}
+      {!isShow && t.tracked && (
+        <div
+          className="movie-watched-row"
+          onClick={() =>
+            patch({ status: liveStatus === "finished" ? "watch_next" : "finished" })
+          }
+        >
+          <button
+            className={`ep-check ${liveStatus === "finished" ? "done" : ""}`}
+            title={liveStatus === "finished" ? "Mark unwatched" : "Mark watched"}
+          >
+            <CheckIcon size={16} />
+          </button>
+          <strong>
+            {liveStatus === "finished" ? "Watched" : "Not watched yet"}
+          </strong>
+        </div>
+      )}
 
       {(!isShow || tab === "about") && (
         <div style={{ padding: 16 }}>
@@ -484,8 +521,7 @@ export function Detail() {
       )}
 
       {(!t.tracked ||
-        (isShow && (t.status === "stopped" || t.status === "watch_next")) ||
-        (!isShow && liveStatus !== "finished")) && (
+        (isShow && (t.status === "stopped" || t.status === "watch_next"))) && (
         <div style={{ height: 84 }} />
       )}
       {!t.tracked ? (
@@ -512,17 +548,6 @@ export function Detail() {
             ▶ Resume watching
           </button>
         </div>
-      ) : !isShow && liveStatus !== "finished" ? (
-        // Movies don't have episodes/resume — the action is simply "mark watched".
-        <div className="track-footer">
-          <button
-            className="btn"
-            style={{ width: "100%" }}
-            onClick={() => patch({ status: "finished" })}
-          >
-            ✓ Mark as watched
-          </button>
-        </div>
       ) : null}
     </>
   );
@@ -536,12 +561,14 @@ function DetailActions({
   status,
   isFavorite,
   onPatch,
+  onUntrack,
 }: {
   kind: "show" | "movie";
   refId: number;
   status: Status;
   isFavorite: boolean;
   onPatch: (p: Record<string, unknown>) => void;
+  onUntrack: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -640,17 +667,37 @@ function DetailActions({
                     Stop watching
                   </button>
                 ))}
-              {!isShow && status !== "finished" && (
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    onPatch({ status: "finished" });
-                    setOpen(false);
-                  }}
-                >
-                  Mark as watched
-                </button>
-              )}
+              {!isShow &&
+                (status === "finished" ? (
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      onPatch({ status: "watch_next" });
+                      setOpen(false);
+                    }}
+                  >
+                    Mark as unwatched
+                  </button>
+                ) : (
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      onPatch({ status: "finished" });
+                      setOpen(false);
+                    }}
+                  >
+                    Mark as watched
+                  </button>
+                ))}
+              <button
+                className="menu-item danger"
+                onClick={() => {
+                  onUntrack();
+                  setOpen(false);
+                }}
+              >
+                Untrack {isShow ? "show" : "movie"}
+              </button>
             </div>
           </>
         )}

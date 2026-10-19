@@ -26,6 +26,7 @@ import {
   getStats,
   addTitle,
   updateLibrary,
+  untrackLibrary,
   toggleEpisode,
   getSetting,
   setSetting,
@@ -432,6 +433,11 @@ app.patch("/api/library/:id", requireAuth, blockDemo, async (c) => {
     c.req.param("id")!,
     await c.req.json(),
   );
+  return c.json({ ok: true });
+});
+
+app.delete("/api/library/:id", requireAuth, blockDemo, async (c) => {
+  await untrackLibrary(c.env, c.get("userId"), c.req.param("id")!);
   return c.json({ ok: true });
 });
 

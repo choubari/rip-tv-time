@@ -138,6 +138,8 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     }),
+  untrack: (id: string) =>
+    req(`/api/library/${encodeURIComponent(id)}`, { method: "DELETE" }),
   toggleEpisode: (
     id: string,
     season: number,

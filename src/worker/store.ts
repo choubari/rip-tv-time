@@ -825,6 +825,24 @@ export async function updateLibrary(
     .run();
 }
 
+// Remove a title from the library entirely (undo an accidental "Track"). Also
+// clears watched-episode progress so re-tracking later starts clean. The title
+// row itself is left for the periodic prune (it may still be referenced elsewhere).
+export async function untrackLibrary(
+  env: Env,
+  userId: string,
+  titleId: string,
+) {
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM watched_episodes WHERE user_id = ? AND title_id = ?",
+    ).bind(userId, titleId),
+    env.DB.prepare(
+      "DELETE FROM library WHERE user_id = ? AND title_id = ?",
+    ).bind(userId, titleId),
+  ]);
+}
+
 export async function toggleEpisode(
   env: Env,
   userId: string,
