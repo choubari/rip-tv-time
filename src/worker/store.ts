@@ -683,16 +683,19 @@ export async function getStats(env: Env, userId: string): Promise<Stats> {
   const movies = await q(
     "SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'movie'",
   );
+  // Rewatches count: like TV Time, watching an episode again adds to the episode
+  // total and the watch time (SUM of plays, not a distinct episode count).
   const eps = await q(
-    "SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ? AND season > 0 AND watched = 1",
+    "SELECT COALESCE(SUM(MAX(COALESCE(plays,1),1)),0) c FROM watched_episodes WHERE user_id = ? AND season > 0 AND watched = 1",
   );
   const moviesWatched = await q(
     "SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind='movie' AND status='finished'",
   );
   // Watch time: prefer the real per-episode runtime from the export, then the
-  // show's average runtime, then a 40m default. Movies use their own runtime.
+  // show's average runtime, then a 40m default. Each rewatch adds its runtime
+  // again. Movies use their own runtime.
   const tv = await q(
-    "SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ? AND w.season > 0 AND w.watched = 1",
+    "SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40) * MAX(COALESCE(w.plays,1),1)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ? AND w.season > 0 AND w.watched = 1",
   );
   const mv = await q(
     "SELECT COALESCE(SUM(COALESCE(t.runtime,100)),0) m FROM library l JOIN titles t ON t.id=l.title_id WHERE l.user_id = ? AND l.kind='movie' AND l.status='finished'",
@@ -795,6 +798,18 @@ export async function ensureTitle(
         meta.total_episodes,
         JSON.stringify(meta.genres),
       )
+      .run();
+  } else {
+    // TMDB lookup failed (no key, rate limit, or network error). Still create a
+    // minimal row — keyed by the real tmdb_id — so the detail page can open
+    // (refOf would otherwise return 0 and the client 404s with "This title
+    // doesn't exist"). Seasons/cast still load via tmdb_id, and the background
+    // resolver backfills name/poster later.
+    await env.DB.prepare(
+      `INSERT INTO titles (id, kind, tmdb_id, name, updated_at)
+       VALUES (?, ?, ?, ?, datetime('now')) ON CONFLICT(id) DO NOTHING`,
+    )
+      .bind(id, kind, tmdbId, kind === "show" ? "Show" : "Movie")
       .run();
   }
   return id;
