@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS watched_episodes (
   season     INTEGER NOT NULL,
   episode    INTEGER NOT NULL,
   watched    INTEGER NOT NULL DEFAULT 1, -- 1 = watched, 0 = tracked but not watched
+  plays      INTEGER NOT NULL DEFAULT 1, -- number of times watched (rewatches); 0 when not watched
   watched_at TEXT,
   rating     REAL,
   runtime    INTEGER,               -- minutes (from GDPR export when available)

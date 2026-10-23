@@ -159,13 +159,14 @@ export async function seedImport(
         if (e.watched) episodes++;
         stmts.push(
           env.DB.prepare(
-            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, watched_at, rating, runtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, plays, watched_at, rating, runtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
           ).bind(
             userId,
             id,
             e.season,
             e.episode,
             e.watched ? 1 : 0,
+            e.watched ? Math.max(1, e.plays ?? 1) : 0,
             e.watched_at,
             e.rating,
             e.runtime,
@@ -649,7 +650,7 @@ export async function getTitle(
   if (!r) return null;
   titleId = r.id; // normalize to the string id for the episodes query below
   const { results: episodes } = await env.DB.prepare(
-    "SELECT season, episode, watched, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
+    "SELECT season, episode, watched, plays, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
   )
     .bind(userId, titleId)
     .all<{ season: number; watched: number }>();
@@ -665,7 +666,11 @@ export async function getTitle(
   return {
     ...item,
     tracked: r.status != null,
-    episodes: episodes.map((e) => ({ ...e, watched: !!e.watched })),
+    episodes: episodes.map((e: any) => ({
+      ...e,
+      watched: !!e.watched,
+      plays: e.watched ? Math.max(1, e.plays ?? 1) : 0,
+    })),
   };
 }
 
@@ -853,12 +858,18 @@ export async function toggleEpisode(
 ) {
   await ensureLibraryRow(env, userId, titleId);
   // Set the watched flag (row may already exist as an unwatched episode).
+  // plays tracks rewatches: 1 when first marked, 0 when unmarked. Marking an
+  // already-watched episode here is a no-op on plays (the modal's "watch again"
+  // uses setEpisodePlays to increment).
   await env.DB.prepare(
-    `INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, watched_at)
-     VALUES (?, ?, ?, ?, ?, ${watched ? "datetime('now')" : "NULL"})
-     ON CONFLICT(user_id, title_id, season, episode) DO UPDATE SET watched = excluded.watched, watched_at = excluded.watched_at`,
+    `INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, plays, watched_at)
+     VALUES (?, ?, ?, ?, ?, ?, ${watched ? "datetime('now')" : "NULL"})
+     ON CONFLICT(user_id, title_id, season, episode) DO UPDATE SET
+       watched = excluded.watched,
+       plays = ${watched ? "MAX(watched_episodes.plays, 1)" : "0"},
+       watched_at = excluded.watched_at`,
   )
-    .bind(userId, titleId, season, episode, watched ? 1 : 0)
+    .bind(userId, titleId, season, episode, watched ? 1 : 0, watched ? 1 : 0)
     .run();
   // Ticking promotes a show out of "haven't started" (there is progress now, so
   // the base status must be "watching" for effectiveStatus to group it);
@@ -866,6 +877,52 @@ export async function toggleEpisode(
   // Both are explicit user actions, so we never infer either from episode
   // counts alone. "watch next" (Watch later) and "stopped" are deliberately
   // left alone: those buckets keep their progress bar (see StatusBar).
+  if (watched)
+    await env.DB.prepare(
+      `UPDATE library SET last_watched_at = datetime('now'),
+              status = CASE WHEN status = 'not_started' THEN 'watching' ELSE status END
+       WHERE user_id = ? AND title_id = ?`,
+    )
+      .bind(userId, titleId)
+      .run();
+  else
+    await env.DB.prepare(
+      `UPDATE library SET status = 'watching'
+       WHERE user_id = ? AND title_id = ? AND status = 'finished'`,
+    )
+      .bind(userId, titleId)
+      .run();
+}
+
+// Set how many times an episode has been watched (rewatches). plays <= 0 marks
+// it unwatched; plays >= 1 marks it watched with that play count. Mirrors
+// toggleEpisode's status side-effects so rewatching from "finished" or marking
+// a first play from "haven't started" keeps the library status coherent.
+export async function setEpisodePlays(
+  env: Env,
+  userId: string,
+  titleId: string,
+  season: number,
+  episode: number,
+  plays: number,
+) {
+  await ensureLibraryRow(env, userId, titleId);
+  const n = Math.max(0, Math.floor(plays));
+  const watched = n > 0;
+  await env.DB.prepare(
+    `INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, plays, watched_at)
+     VALUES (?, ?, ?, ?, ?, ?, ${watched ? "datetime('now')" : "NULL"})
+     ON CONFLICT(user_id, title_id, season, episode) DO UPDATE SET
+       watched = excluded.watched,
+       plays = excluded.plays,
+       watched_at = CASE
+         WHEN excluded.plays > COALESCE(watched_episodes.plays, 0) THEN datetime('now')
+         WHEN excluded.plays = 0 THEN NULL
+         ELSE watched_episodes.watched_at
+       END`,
+  )
+    .bind(userId, titleId, season, episode, watched ? 1 : 0, n)
+    .run();
   if (watched)
     await env.DB.prepare(
       `UPDATE library SET last_watched_at = datetime('now'),

@@ -25,6 +25,8 @@ export function Detail() {
   const [watchedDates, setWatchedDates] = useState<Map<string, string | null>>(
     new Map(),
   );
+  // How many times each episode has been watched (rewatches). Absent/0 = unwatched.
+  const [plays, setPlays] = useState<Map<string, number>>(new Map());
   const [extra, setExtra] = useState<Extra | null>(null);
   const [sp, setSp] = useSearchParams();
   const tab: "about" | "episodes" =
@@ -68,6 +70,16 @@ export function Detail() {
         setWatchedDates(
           new Map(
             d.episodes.map((e) => [`${e.season}:${e.episode}`, e.watched_at]),
+          ),
+        );
+        setPlays(
+          new Map(
+            d.episodes
+              .filter((e) => e.watched)
+              .map((e) => [
+                `${e.season}:${e.episode}`,
+                Math.max(1, e.plays ?? 1),
+              ]),
           ),
         );
         if (d.kind === "show")
@@ -202,6 +214,7 @@ export function Detail() {
   async function untrack() {
     setWatched(new Set());
     setWatchedDates(new Map());
+    setPlays(new Map());
     setT({
       ...t,
       tracked: false,
@@ -224,7 +237,36 @@ export function Detail() {
       on ? n.set(key, new Date().toISOString()) : n.delete(key);
       return n;
     });
+    setPlays((cur) => {
+      const n = new Map(cur);
+      // Marking keeps any existing rewatch count (min 1); unmarking clears it.
+      on ? n.set(key, Math.max(1, n.get(key) ?? 1)) : n.delete(key);
+      return n;
+    });
     await api.toggleEpisode(id, season, episode, on);
+  }
+  // Set how many times an episode was watched (0 = unwatched). Drives the
+  // "watched more than once" count on the checkmark and the modal stepper.
+  async function setEpPlays(season: number, episode: number, count: number) {
+    const key = `${season}:${episode}`;
+    const n = Math.max(0, count);
+    setWatched((cur) => {
+      const s = new Set(cur);
+      n > 0 ? s.add(key) : s.delete(key);
+      return s;
+    });
+    setWatchedDates((cur) => {
+      const m = new Map(cur);
+      if (n > 0) m.set(key, m.get(key) ?? new Date().toISOString());
+      else m.delete(key);
+      return m;
+    });
+    setPlays((cur) => {
+      const m = new Map(cur);
+      n > 0 ? m.set(key, n) : m.delete(key);
+      return m;
+    });
+    await api.setEpisodePlays(id, season, episode, n);
   }
   async function setSeasonAll(s: SeasonData, on: boolean) {
     for (const e of s.episodes) await setEp(s.season, e.episode, on);
@@ -254,7 +296,8 @@ export function Detail() {
     if (watchedRegular === 0) return "not_started";
     // Any progress means the show is in progress — covers both "was finished,
     // now some unmarked" and "was haven't-started, first episode just ticked".
-    if (t.status === "finished" || t.status === "not_started") return "watching";
+    if (t.status === "finished" || t.status === "not_started")
+      return "watching";
     return t.status;
   })();
 
@@ -360,12 +403,16 @@ export function Detail() {
         <div
           className="movie-watched-row"
           onClick={() =>
-            patch({ status: liveStatus === "finished" ? "watch_next" : "finished" })
+            patch({
+              status: liveStatus === "finished" ? "watch_next" : "finished",
+            })
           }
         >
           <button
             className={`ep-check ${liveStatus === "finished" ? "done" : ""}`}
-            title={liveStatus === "finished" ? "Mark unwatched" : "Mark watched"}
+            title={
+              liveStatus === "finished" ? "Mark unwatched" : "Mark watched"
+            }
           >
             <CheckIcon size={16} />
           </button>
@@ -493,6 +540,7 @@ export function Detail() {
                 key={s.season}
                 s={s}
                 watched={watched}
+                plays={plays}
                 count={w}
                 allOn={allOn}
                 onToggle={setEp}
@@ -513,8 +561,12 @@ export function Detail() {
           watchedAt={
             watchedDates.get(`${modalEp.season}:${modalEp.ep.episode}`) ?? null
           }
+          plays={plays.get(`${modalEp.season}:${modalEp.ep.episode}`) ?? 0}
           onToggle={(on) => {
             setEp(modalEp.season, modalEp.ep.episode, on);
+          }}
+          onSetPlays={(n) => {
+            setEpPlays(modalEp.season, modalEp.ep.episode, n);
           }}
           onClose={() => setModalEp(null)}
         />
@@ -712,7 +764,9 @@ function EpisodeModal({
   ep,
   watched,
   watchedAt,
+  plays,
   onToggle,
+  onSetPlays,
   onClose,
 }: {
   show: string;
@@ -720,7 +774,9 @@ function EpisodeModal({
   ep: SeasonData["episodes"][number];
   watched: boolean;
   watchedAt: string | null;
+  plays: number;
   onToggle: (on: boolean) => void;
+  onSetPlays: (n: number) => void;
   onClose: () => void;
 }) {
   const fmt = (d: string) =>
@@ -772,12 +828,40 @@ function EpisodeModal({
             {watched && !watchedAt && (
               <span style={{ color: "#21d07a" }}>✓ Watched</span>
             )}
+            {watched && plays > 1 && (
+              <span style={{ color: "#21d07a" }}>↻ Watched {plays} times</span>
+            )}
             {ep.runtime ? <span>⏱ {ep.runtime} min</span> : null}
           </div>
+          {/* Rewatch stepper: mirrors TV Time's "watched again". Only shown once
+              the episode is watched; the primary button handles first/last play. */}
+          {watched && (
+            <div className="rewatch-row">
+              <span className="rewatch-label">Times watched</span>
+              <div className="rewatch-stepper">
+                <button
+                  className="rewatch-btn"
+                  disabled={plays <= 1}
+                  title="Remove a watch"
+                  onClick={() => onSetPlays(plays - 1)}
+                >
+                  −
+                </button>
+                <span className="rewatch-count">{plays}</span>
+                <button
+                  className="rewatch-btn"
+                  title="I watched this again"
+                  onClick={() => onSetPlays(plays + 1)}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
           <button
             className="btn"
             style={{
-              marginTop: 16,
+              marginTop: 12,
               width: "100%",
               background: watched ? "var(--bg-elev-2)" : "var(--primary)",
             }}
@@ -788,6 +872,18 @@ function EpisodeModal({
           >
             {watched ? "Mark as unwatched" : "Mark as watched"}
           </button>
+          {!watched && (
+            <button
+              className="btn ghost"
+              style={{ marginTop: 8, width: "100%" }}
+              onClick={() => {
+                onSetPlays(2);
+                onClose();
+              }}
+            >
+              Watched more than once
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -797,6 +893,7 @@ function EpisodeModal({
 function SeasonBlock({
   s,
   watched,
+  plays,
   count,
   allOn,
   onToggle,
@@ -805,6 +902,7 @@ function SeasonBlock({
 }: {
   s: SeasonData;
   watched: Set<string>;
+  plays: Map<string, number>;
   count: number;
   allOn: boolean;
   onToggle: (season: number, ep: number, on: boolean) => void;
@@ -834,6 +932,7 @@ function SeasonBlock({
       {open &&
         s.episodes.map((e) => {
           const on = watched.has(`${s.season}:${e.episode}`);
+          const n = plays.get(`${s.season}:${e.episode}`) ?? 0;
           return (
             <div
               className="ep-row"
@@ -880,9 +979,19 @@ function SeasonBlock({
               <button
                 className={`ep-check ${on ? "done" : ""}`}
                 onClick={() => onToggle(s.season, e.episode, !on)}
-                title={on ? "Mark unwatched" : "Mark watched"}
+                title={
+                  on
+                    ? n > 1
+                      ? `Watched ${n} times`
+                      : "Mark unwatched"
+                    : "Mark watched"
+                }
               >
-                <CheckIcon size={16} />
+                {on && n > 1 ? (
+                  <span className="play-count">×{n}</span>
+                ) : (
+                  <CheckIcon size={16} />
+                )}
               </button>
             </div>
           );

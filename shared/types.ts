@@ -63,7 +63,8 @@ export function effectiveStatus(item: {
   // ticked the show is in progress, even if the stored base status still reads
   // not_started (rows written before toggleEpisode promoted it).
   const inProgress =
-    item.status === "watching" || (item.status === "not_started" && watched > 0);
+    item.status === "watching" ||
+    (item.status === "not_started" && watched > 0);
   if (!inProgress) return item.status;
   if (watched === 0) return "not_started";
   const total = item.total_episodes ?? 0;
@@ -144,6 +145,7 @@ export interface ParsedTitle {
     watched_at: string | null;
     rating: number | null;
     runtime: number | null;
+    plays?: number; // number of times watched (rewatches); defaults to 1 when watched
   }[];
 }
 
