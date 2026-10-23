@@ -598,6 +598,55 @@ img {
   border-color: #21d07a;
   color: #fff;
 } /* TV Time uses green for watched */
+/* Rewatch count shown inside the green check instead of the tick (×2, ×3…). */
+.ep-check .play-count {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+/* "Times watched" stepper in the episode modal. */
+.rewatch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: var(--bg-elev-2);
+  border-radius: 10px;
+}
+.rewatch-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.rewatch-stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rewatch-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rewatch-btn:disabled {
+  opacity: 0.4;
+}
+.rewatch-count {
+  min-width: 24px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+}
 .continue-card {
   display: flex;
   align-items: center;

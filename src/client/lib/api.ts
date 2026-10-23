@@ -35,6 +35,7 @@ export interface TitleDetail extends LibraryItem {
     watched: boolean;
     watched_at: string | null;
     rating: number | null;
+    plays: number;
   }[];
 }
 
@@ -149,5 +150,15 @@ export const api = {
     req(
       `/api/title/${encodeURIComponent(id)}/episode`,
       json({ season, episode, watched }),
+    ),
+  setEpisodePlays: (
+    id: string,
+    season: number,
+    episode: number,
+    plays: number,
+  ) =>
+    req(
+      `/api/title/${encodeURIComponent(id)}/episode/plays`,
+      json({ season, episode, plays }),
     ),
 };
