@@ -4,6 +4,7 @@ import type { SearchResult } from "../../worker/tmdb";
 import { TMDB_IMG, effectiveStatus, type Status } from "../../../shared/types";
 import { StatusBar } from "../components/Poster";
 import { api } from "../lib/api";
+import { toast } from "../lib/toast";
 
 export function Discover() {
   const [sp, setSp] = useSearchParams();
@@ -60,7 +61,8 @@ export function Discover() {
     setOpening(r.tmdb_id);
     try {
       const { ref } = await api.ensure(r.kind, r.tmdb_id);
-      nav(`/${r.kind}/${ref}`);
+      if (ref > 0) nav(`/${r.kind}/${ref}`);
+      else toast("Couldn't open this title — try again in a moment.");
     } finally {
       setOpening(null);
     }

@@ -133,6 +133,8 @@ export function parseExport(files: FileMap): ParsedImport {
             ex.watched_at = e.watched_at;
           }
           if (ex.runtime == null && e.runtime != null) ex.runtime = e.runtime;
+          // Keep the higher rewatch count across sources (GDPR has the real plays).
+          if ((e.plays ?? 0) > (ex.plays ?? 0)) ex.plays = e.plays;
         }
       }
       if (
@@ -313,13 +315,21 @@ export function parseExport(files: FileMap): ParsedImport {
         (sid && epsByShow.get(sid)) ||
         (r.series_name && epsByShow.get(r.series_name)) ||
         [];
-      const seen = new Set<string>(); // de-dup repeated (season, episode) rows (rewatches)
-      const uniqueEps = eps.filter((e) => {
+      // Collapse repeated (season, episode) rows into one episode, counting the
+      // repeats as rewatches (plays) and keeping the most recent watch date.
+      const byEp = new Map<string, ParsedTitle["watched_episodes"][number]>();
+      for (const e of eps) {
         const k = `${e.season}:${e.episode}`;
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
+        const ex = byEp.get(k);
+        if (!ex) {
+          byEp.set(k, { ...e, plays: 1 });
+        } else {
+          ex.plays = (ex.plays ?? 1) + 1;
+          if (e.watched_at && (!ex.watched_at || e.watched_at > ex.watched_at))
+            ex.watched_at = e.watched_at;
+        }
+      }
+      const uniqueEps = [...byEp.values()];
       const candidate: ParsedTitle = {
         kind: "show",
         uuid: r.uuid ?? null,

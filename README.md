@@ -154,7 +154,9 @@ printf 'demo@example.com' | npx wrangler secret put DEMO_EMAIL   # optional demo
   user manage their own key.
 - **Read-only demo** — set `DEMO_EMAIL`, sign in as it once and import a sample
   export; visitors get a one-click **Try the demo** button (they can browse but
-  not modify anything).
+  not modify anything). To showcase rewatch counts on the demo without a
+  writable account, seed some play counts onto its existing history:
+  `npm run db:seed:demo:rewatches:local` (or `…:remote -- --email=<demo address>`).
 
 ### Security
 

@@ -28,6 +28,7 @@ import {
   updateLibrary,
   untrackLibrary,
   toggleEpisode,
+  setEpisodePlays,
   getSetting,
   setSetting,
   tmdbKey,
@@ -454,6 +455,25 @@ app.post("/api/title/:id/episode", requireAuth, blockDemo, async (c) => {
     season,
     episode,
     watched,
+  );
+  return c.json({ ok: true });
+});
+
+// Set an episode's rewatch count (plays). 0 marks it unwatched; N marks it
+// watched N times. Powers the "watched more than once" badge/stepper.
+app.post("/api/title/:id/episode/plays", requireAuth, blockDemo, async (c) => {
+  const { season, episode, plays } = await c.req.json<{
+    season: number;
+    episode: number;
+    plays: number;
+  }>();
+  await setEpisodePlays(
+    c.env,
+    c.get("userId"),
+    c.req.param("id")!,
+    season,
+    episode,
+    plays,
   );
   return c.json({ ok: true });
 });
