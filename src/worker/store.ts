@@ -437,6 +437,16 @@ function rowToMeta(r: any): TitleMeta {
 }
 
 function rowToItem(r: any): LibraryItem {
+  const watched = r.episodes_watched ?? 0;
+  const storedTotal = r.stored_total ?? 0;
+  const metaTotal = rowToMeta(r).total_episodes;
+  // Stored episode rows are a reliable total only for a full import (which stores
+  // unwatched episodes too). For a show tracked episode-by-episode in-app, only
+  // ticked episodes are stored, so stored_total == watched and the show would
+  // wrongly derive as "finished". Trust stored_total only when it exceeds the
+  // watched count; else use the resolved TMDB/export total.
+  const showTotal =
+    storedTotal > watched ? storedTotal : (metaTotal ?? (storedTotal || null));
   const base = {
     ...rowToMeta(r),
     status: (r.status ?? "not_started") as Status,
@@ -444,14 +454,8 @@ function rowToItem(r: any): LibraryItem {
     rating: r.rating ?? null,
     added_at: r.added_at ?? null,
     last_watched_at: r.last_watched_at ?? null,
-    episodes_watched: r.episodes_watched ?? 0,
-    // "Finished" means every episode IN THE LIST is watched. The list is the
-    // stored episodes (from the export), which is what the user can actually tick
-    // — TMDB's raw count can be higher (unaired/specials) and unreachable.
-    total_episodes:
-      r.stored_total && r.kind === "show"
-        ? r.stored_total
-        : rowToMeta(r).total_episodes,
+    episodes_watched: watched,
+    total_episodes: r.kind === "show" ? showTotal : metaTotal,
   };
   // Grouping uses the *derived* status (watching vs paused vs finished).
   return { ...base, status: effectiveStatus(base) };
