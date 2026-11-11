@@ -159,14 +159,13 @@ export async function seedImport(
         if (e.watched) episodes++;
         stmts.push(
           env.DB.prepare(
-            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, plays, watched_at, rating, runtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+            "INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, watched_at, rating, runtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
           ).bind(
             userId,
             id,
             e.season,
             e.episode,
             e.watched ? 1 : 0,
-            e.watched ? Math.max(1, e.plays ?? 1) : 0,
             e.watched_at,
             e.rating,
             e.runtime,
@@ -654,7 +653,7 @@ export async function getTitle(
   if (!r) return null;
   titleId = r.id; // normalize to the string id for the episodes query below
   const { results: episodes } = await env.DB.prepare(
-    "SELECT season, episode, watched, plays, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
+    "SELECT season, episode, watched, watched_at, rating FROM watched_episodes WHERE user_id = ? AND title_id = ? ORDER BY season, episode",
   )
     .bind(userId, titleId)
     .all<{ season: number; watched: number }>();
@@ -673,7 +672,9 @@ export async function getTitle(
     episodes: episodes.map((e: any) => ({
       ...e,
       watched: !!e.watched,
-      plays: e.watched ? Math.max(1, e.plays ?? 1) : 0,
+      // Rewatch tracking is disabled until the `plays` column is migrated into
+      // the production DB; report 1 play for any watched episode.
+      plays: e.watched ? 1 : 0,
     })),
   };
 }
@@ -687,19 +688,19 @@ export async function getStats(env: Env, userId: string): Promise<Stats> {
   const movies = await q(
     "SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind = 'movie'",
   );
-  // Rewatches count: like TV Time, watching an episode again adds to the episode
-  // total and the watch time (SUM of plays, not a distinct episode count).
+  // Rewatch counting is disabled until the `plays` column is migrated into prod;
+  // count each watched episode once.
   const eps = await q(
-    "SELECT COALESCE(SUM(MAX(COALESCE(plays,1),1)),0) c FROM watched_episodes WHERE user_id = ? AND season > 0 AND watched = 1",
+    "SELECT COUNT(*) c FROM watched_episodes WHERE user_id = ? AND season > 0 AND watched = 1",
   );
   const moviesWatched = await q(
     "SELECT COUNT(*) c FROM library WHERE user_id = ? AND kind='movie' AND status='finished'",
   );
   // Watch time: prefer the real per-episode runtime from the export, then the
-  // show's average runtime, then a 40m default. Each rewatch adds its runtime
-  // again. Movies use their own runtime.
+  // show's average runtime, then a 40m default. Movies use their own runtime.
+  // (Rewatch multiplier omitted until the `plays` column is migrated into prod.)
   const tv = await q(
-    "SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40) * MAX(COALESCE(w.plays,1),1)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ? AND w.season > 0 AND w.watched = 1",
+    "SELECT COALESCE(SUM(COALESCE(w.runtime, t.runtime, 40)),0) m FROM watched_episodes w JOIN titles t ON t.id=w.title_id WHERE w.user_id = ? AND w.season > 0 AND w.watched = 1",
   );
   const mv = await q(
     "SELECT COALESCE(SUM(COALESCE(t.runtime,100)),0) m FROM library l JOIN titles t ON t.id=l.title_id WHERE l.user_id = ? AND l.kind='movie' AND l.status='finished'",
@@ -877,18 +878,15 @@ export async function toggleEpisode(
 ) {
   await ensureLibraryRow(env, userId, titleId);
   // Set the watched flag (row may already exist as an unwatched episode).
-  // plays tracks rewatches: 1 when first marked, 0 when unmarked. Marking an
-  // already-watched episode here is a no-op on plays (the modal's "watch again"
-  // uses setEpisodePlays to increment).
+  // (Rewatch `plays` tracking is disabled until that column is migrated to prod.)
   await env.DB.prepare(
-    `INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, plays, watched_at)
-     VALUES (?, ?, ?, ?, ?, ?, ${watched ? "datetime('now')" : "NULL"})
+    `INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, watched_at)
+     VALUES (?, ?, ?, ?, ?, ${watched ? "datetime('now')" : "NULL"})
      ON CONFLICT(user_id, title_id, season, episode) DO UPDATE SET
        watched = excluded.watched,
-       plays = ${watched ? "MAX(watched_episodes.plays, 1)" : "0"},
        watched_at = excluded.watched_at`,
   )
-    .bind(userId, titleId, season, episode, watched ? 1 : 0, watched ? 1 : 0)
+    .bind(userId, titleId, season, episode, watched ? 1 : 0)
     .run();
   // Ticking promotes a show out of "haven't started" (there is progress now, so
   // the base status must be "watching" for effectiveStatus to group it);
@@ -928,19 +926,16 @@ export async function setEpisodePlays(
   await ensureLibraryRow(env, userId, titleId);
   const n = Math.max(0, Math.floor(plays));
   const watched = n > 0;
+  // Rewatch counts are disabled until the `plays` column is migrated into prod,
+  // so this only flips the watched flag (plays > 0 = watched, 0 = unwatched).
   await env.DB.prepare(
-    `INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, plays, watched_at)
-     VALUES (?, ?, ?, ?, ?, ?, ${watched ? "datetime('now')" : "NULL"})
+    `INSERT INTO watched_episodes (user_id, title_id, season, episode, watched, watched_at)
+     VALUES (?, ?, ?, ?, ?, ${watched ? "datetime('now')" : "NULL"})
      ON CONFLICT(user_id, title_id, season, episode) DO UPDATE SET
        watched = excluded.watched,
-       plays = excluded.plays,
-       watched_at = CASE
-         WHEN excluded.plays > COALESCE(watched_episodes.plays, 0) THEN datetime('now')
-         WHEN excluded.plays = 0 THEN NULL
-         ELSE watched_episodes.watched_at
-       END`,
+       watched_at = excluded.watched_at`,
   )
-    .bind(userId, titleId, season, episode, watched ? 1 : 0, n)
+    .bind(userId, titleId, season, episode, watched ? 1 : 0)
     .run();
   if (watched)
     await env.DB.prepare(
