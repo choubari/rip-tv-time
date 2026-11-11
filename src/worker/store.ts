@@ -436,6 +436,28 @@ function rowToMeta(r: any): TitleMeta {
 }
 
 function rowToItem(r: any): LibraryItem {
+  const watched = r.episodes_watched ?? 0;
+  const storedTotal = r.stored_total ?? 0;
+  const metaTotal = rowToMeta(r).total_episodes;
+  // How many episodes the show really has — drives the progress bar and, via
+  // effectiveStatus, whether the show counts as "finished".
+  //
+  // The stored episode rows (watched_episodes) are a trustworthy total ONLY when
+  // they contain episodes the user has NOT watched yet — i.e. a full import,
+  // which stores every episode (watched and unwatched). When a show is instead
+  // tracked episode-by-episode inside the app, watched_episodes holds ONLY the
+  // episodes that were ticked, so stored_total == the watched count. Treating
+  // that as the whole show is the bug behind "my show vanished": the moment you
+  // catch up on every episode you've marked (e.g. the 2 you've started of a
+  // 16-episode run), watched >= total, the show is derived as "finished", drops
+  // out of Watching, and its unticked/upcoming episodes disappear from the
+  // detail page (which hides TMDB episodes on a finished show).
+  //
+  // So only trust stored_total when it exceeds the watched count; otherwise use
+  // the resolved TMDB/export total, falling back to stored_total when that's
+  // unavailable.
+  const showTotal =
+    storedTotal > watched ? storedTotal : (metaTotal ?? (storedTotal || null));
   const base = {
     ...rowToMeta(r),
     status: (r.status ?? "not_started") as Status,
@@ -443,14 +465,8 @@ function rowToItem(r: any): LibraryItem {
     rating: r.rating ?? null,
     added_at: r.added_at ?? null,
     last_watched_at: r.last_watched_at ?? null,
-    episodes_watched: r.episodes_watched ?? 0,
-    // "Finished" means every episode IN THE LIST is watched. The list is the
-    // stored episodes (from the export), which is what the user can actually tick
-    // — TMDB's raw count can be higher (unaired/specials) and unreachable.
-    total_episodes:
-      r.stored_total && r.kind === "show"
-        ? r.stored_total
-        : rowToMeta(r).total_episodes,
+    episodes_watched: watched,
+    total_episodes: r.kind === "show" ? showTotal : metaTotal,
   };
   // Grouping uses the *derived* status (watching vs paused vs finished).
   return { ...base, status: effectiveStatus(base) };
