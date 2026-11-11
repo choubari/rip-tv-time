@@ -439,23 +439,11 @@ function rowToItem(r: any): LibraryItem {
   const watched = r.episodes_watched ?? 0;
   const storedTotal = r.stored_total ?? 0;
   const metaTotal = rowToMeta(r).total_episodes;
-  // How many episodes the show really has — drives the progress bar and, via
-  // effectiveStatus, whether the show counts as "finished".
-  //
-  // The stored episode rows (watched_episodes) are a trustworthy total ONLY when
-  // they contain episodes the user has NOT watched yet — i.e. a full import,
-  // which stores every episode (watched and unwatched). When a show is instead
-  // tracked episode-by-episode inside the app, watched_episodes holds ONLY the
-  // episodes that were ticked, so stored_total == the watched count. Treating
-  // that as the whole show is the bug behind "my show vanished": the moment you
-  // catch up on every episode you've marked (e.g. the 2 you've started of a
-  // 16-episode run), watched >= total, the show is derived as "finished", drops
-  // out of Watching, and its unticked/upcoming episodes disappear from the
-  // detail page (which hides TMDB episodes on a finished show).
-  //
-  // So only trust stored_total when it exceeds the watched count; otherwise use
-  // the resolved TMDB/export total, falling back to stored_total when that's
-  // unavailable.
+  // Stored episode rows are a reliable total only for a full import (which stores
+  // unwatched episodes too). For a show tracked episode-by-episode in-app, only
+  // ticked episodes are stored, so stored_total == watched and the show would
+  // wrongly derive as "finished". Trust stored_total only when it exceeds the
+  // watched count; else use the resolved TMDB/export total.
   const showTotal =
     storedTotal > watched ? storedTotal : (metaTotal ?? (storedTotal || null));
   const base = {
